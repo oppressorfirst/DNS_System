@@ -16,12 +16,12 @@
 | org        | 20.24.143.210  | cxnedo   | ZJLzjl145747. | ZJLzjl145747. |
 
 
-| 二级域服务器 | ip             | 登录用户 | 登录用户密码  | root密码      |
-| :----------- | -------------- | -------- | ------------- | ------------- |
-| edu.cn       | 34.92.65.67    | cxnedo   | ZJLzjl2002.   | ZJLzjl2002.   |
-| gov.us       | 178.128.51.233 | root     | ZJLzjl2002ZJL | ZJLzjl2002ZJL |
-| google.com   | 167.99.71.10   | root     | ZJLzjl2002ZJL | ZJLzjl2002ZJL |
-| itef.org     | 146.190.110.71 | root     | ZJLzjl2002ZJL | ZJLzjl2002ZJL |
+| 二级域服务器 | ip              | 登录用户 | 登录用户密码  | root密码      |
+| :----------- | --------------- | -------- | ------------- | ------------- |
+| edu.cn       | 34.92.65.67     | cxnedo   | ZJLzjl2002.   | ZJLzjl2002.   |
+| gov.us       | 178.128.51.233  | root     | ZJLzjl2002ZJL | ZJLzjl2002ZJL |
+| google.com   | 167.99.71.10    | root     | ZJLzjl2002ZJL | ZJLzjl2002ZJL |
+| itef.org     | 157.245.195.182 | root     | ZJLzjl2002ZJL | ZJLzjl2002ZJL |
 
 
 | 三级域服务器     | ip              | 登录用户 | 登录用户密码  | root密码      |
@@ -33,4 +33,4 @@
 
 | Local服务器 | ip   | 登录用户 | 登录用户密码 | root密码 |
 | :---------- | ---- | -------- | ------------ | -------- |
-| Local DNS | 146.190.102.172 | root | ZJLzjl2002ZJL | ZJLzjl2002ZJL |
+| Local DNS | 68.183.178.54 | root | ZJLzjl2002ZJL | ZJLzjl2002ZJL |
