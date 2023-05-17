@@ -145,35 +145,27 @@ int is_pointer(int in) {
 }
 
 void dns_parse_name(unsigned char* chunk, unsigned char* ptr, char* out, int* len) {
-
-    int flag = 0, n = 0, alen = 0;
-    char* pos = out + (*len);
-
+    int flag = 0, n = 0;
+    char* string = out + (*len);
     while (1) {
-
         flag = (int)ptr[0];
         if (flag == 0) break;
-
         if (is_pointer(flag)) {
-
             n = (int)ptr[1];
             ptr = chunk + n;
             dns_parse_name(chunk, ptr, out, len);
             break;
-
         }
         else {
-
             ptr++;
-            memcpy(pos, ptr, flag);
-            pos += flag;
+            memcpy(string, ptr, flag);
             ptr += flag;
-
+            string += flag;
             *len += flag;
             if ((int)ptr[0] != 0) {
-                memcpy(pos, ".", 1);
-                pos += 1;
-                (*len) += 1;
+                memcpy(string, ".", 1);
+                string ++;
+                (*len) ++;
             }
         }
 
@@ -205,13 +197,13 @@ int dns_parse_response(char* buffer) {
 
     ptr += 2;
 
-   //将问题报文中的网址直接跳过，放到后面读取
+    //将问题报文中的网址直接跳过，放到后面读取
     while (1) {
         int flag = (int)ptr[0];
         ptr += (flag + 1);
         if (flag == 0) break;
     }
-        ptr += 4;
+    ptr += 4;
 
 
 
