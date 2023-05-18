@@ -8,13 +8,15 @@
 #include <arpa/inet.h>
 #include <stdlib.h>
 #include <time.h>
+#include <string.h>
 
 #define DNS_SERVER_PORT     53
-#define DNS_SERVER_IP       "202.112.10.37"
+#define DNS_SERVER_IP       "1.1.1.1"
 #define DNS_HOST			0x01
 #define DNS_CNAME			0x05
 #define DNS_SOA             0x06
 #define DNS_MX              0x0f
+#define DNS_PTR             0x0c
 
 struct DNS_Header{
     unsigned short id; //2字节（16位）
@@ -41,6 +43,7 @@ struct DNS_RR{
     unsigned char *ip;
     unsigned char *CName;
     unsigned char *MXName;
+    unsigned char *PTRName;
 };
 
 
@@ -264,6 +267,13 @@ void dns_parse_response(char* buffer) {
             dnsRr[0][i].MXName = (char*)calloc(strlen(cname) + 1, 1);
             memcpy(dnsRr[0][i].MXName, cname, strlen(cname));
             ptr += dnsRr[0][i].data_len-2;
+        } else if(dnsRr[0][i].type == DNS_PTR){
+            bzero(cname, sizeof(cname));
+            len = 0;
+            dns_parse_name(buffer, ptr, cname, &len);
+            dnsRr[0][i].PTRName = (char*)calloc(strlen(cname) + 1, 1);
+            memcpy(dnsRr[0][i].PTRName, cname, strlen(cname));
+            ptr += dnsRr[0][i].data_len;
         }
     }
 
@@ -277,6 +287,8 @@ void dns_parse_response(char* buffer) {
             printf("%s, ", dnsRr[0][i].ip);
         if(dnsRr[0][i].MXName != NULL)
             printf("%s, ",dnsRr[0][i].MXName);
+        if(dnsRr[0][i].PTRName != NULL)
+            printf("%s, ",dnsRr[0][i].PTRName);
         printf("\n");
     }
     printf("00000000000000000000000000\n");
@@ -414,7 +426,7 @@ int main(){
 
     char temp[10];
     // 获取用户输入的类型
-    printf("请输入记录类型（CNAME、A、MX）：");
+    printf("请输入记录类型（CNAME、A、MX、PTR）：");
     scanf("%s", temp);
     int type;
     // 根据类型输出相应的值
@@ -430,7 +442,13 @@ int main(){
         type = 15;
         printf("MX\n");
         // 在此处添加处理 MX 类型的代码
-    } else {
+    } else if(strcmp(temp, "PTR") == 0)
+    {
+        type = 12;
+        printf("PTR\n");
+        strcat(domain, ".in-addr.arpa");
+    }
+    else {
         printf("无效的类型\n");
     }
 
