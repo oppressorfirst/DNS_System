@@ -10,9 +10,11 @@
 #include <time.h>
 
 #define DNS_SERVER_PORT     53
-#define DNS_SERVER_IP       "114.114.114.114"
+#define DNS_SERVER_IP       "202.112.10.37"
 #define DNS_HOST			0x01
 #define DNS_CNAME			0x05
+#define DNS_SOA             0x06
+#define DNS_MX              0x0f
 
 struct DNS_Header{
     unsigned short id; //2字节（16位）
@@ -32,12 +34,13 @@ struct DNS_Query{
 };
 
 struct DNS_RR{
-    unsigned char *name;
+    unsigned char *SearchName;
     unsigned short type;
-    unsigned short _class;
     unsigned int ttl;
     unsigned short data_len;
     unsigned char *ip;
+    unsigned char *CName;
+    unsigned char *MXName;
 };
 
 
@@ -174,7 +177,7 @@ void dns_parse_name(unsigned char* chunk, unsigned char* ptr, char* out, int* le
 }
 
 
-int dns_parse_response(char* buffer) {
+void dns_parse_response(char* buffer) {
 
     unsigned char *ptr = buffer;
 
@@ -183,7 +186,7 @@ int dns_parse_response(char* buffer) {
     int bit = (flags >> 9) % 2;  // 获取指定位置的二进制位（从右往左，最低位为0）
     if (bit == 1) {
         printf("The received message has been truncated!");
-        return -1;
+        return ;
     }
 
     struct DNS_Query dnsQuery;
@@ -209,12 +212,13 @@ int dns_parse_response(char* buffer) {
 
     //到了回答区域
     char cname[128], aname[128], ip[20], netip[4];
-    int len, type, ttl, datalen;
+    int len;
 
-    int cnt = 0;
 
-    struct DNS_RR dnsRr[allRRNum];
+    struct DNS_RR dnsRr[4][allRRNum];
     memset(dnsRr, 0, allRRNum * sizeof(struct DNS_RR));
+
+    //解析answer区域的回报
     for (int i = 0; i < answersNum; i++) {
 
         bzero(aname, sizeof(aname));
@@ -222,47 +226,184 @@ int dns_parse_response(char* buffer) {
 
         dns_parse_name(buffer, ptr, aname, &len);
         ptr += 2;
+        dnsRr[0][i].SearchName = (char*)calloc(strlen(aname) + 1, 1);
+        memcpy(dnsRr[0][i].SearchName, aname, strlen(aname));
 
-        type = htons(*(unsigned short*)ptr);
+
+        dnsRr[0][i].type = htons(*(unsigned short*)ptr);
         ptr += 4;
 
-        ttl = htons(*(unsigned short*)ptr);
+        dnsRr[0][i].ttl = htons(*(unsigned short*)ptr);
         ptr += 4;
 
-        datalen = ntohs(*(unsigned short*)ptr);
+        dnsRr[0][i].data_len = ntohs(*(unsigned short*)ptr);
         ptr += 2;
 
-        if (type == DNS_CNAME) {
-
+        if (dnsRr[0][i].type == DNS_CNAME) {
             bzero(cname, sizeof(cname));
             len = 0;
             dns_parse_name(buffer, ptr, cname, &len);
-            ptr += datalen;
-
+            ptr += dnsRr[0][i].data_len;
+            dnsRr[0][i].CName = (char*)calloc(strlen(cname) + 1, 1);
+            memcpy(dnsRr[0][i].CName, cname, strlen(cname));
         }
-        else if (type == DNS_HOST) {
-
+        else if (dnsRr[0][i].type == DNS_HOST) {
             bzero(ip, sizeof(ip));
-
-            if (datalen == 4) {
-                memcpy(netip, ptr, datalen);
+            if (dnsRr[0][i].data_len == 4) {
+                memcpy(netip, ptr, dnsRr[0][i].data_len);
                 inet_ntop(AF_INET, netip, ip, sizeof(struct sockaddr));
-
-                printf("%s has address %s\n", aname, ip);
-                printf("\tTime to live: %d minutes , %d seconds\n", ttl / 60, ttl % 60);
-
-                dnsRr[cnt].name = (char*)calloc(strlen(aname) + 1, 1);
-                memcpy(dnsRr[cnt].name, aname, strlen(aname));
-
-                dnsRr[cnt].ip = (char*)calloc(strlen(ip) + 1, 1);
-                memcpy(dnsRr[cnt].ip, ip, strlen(ip));
-
-                cnt++;
+                dnsRr[0][i].ip = (char*)calloc(strlen(ip) + 1, 1);
+                memcpy(dnsRr[0][i].ip, ip, strlen(ip));
             }
-
-            ptr += datalen;
+            ptr += dnsRr[0][i].data_len;
+        }else if(dnsRr[0][i].type == DNS_MX){
+            ptr += 2;
+            bzero(cname, sizeof(cname));
+            len = 0;
+            dns_parse_name(buffer, ptr, cname, &len);
+            dnsRr[0][i].MXName = (char*)calloc(strlen(cname) + 1, 1);
+            memcpy(dnsRr[0][i].MXName, cname, strlen(cname));
+            ptr += dnsRr[0][i].data_len-2;
         }
     }
+
+    for(int i = 0; i < answersNum; i++){
+        printf("%s, ",dnsRr[0][i].SearchName);
+        printf("%d, ",dnsRr[0][i].type);
+        printf("%d, ",dnsRr[0][i].data_len);
+        if(dnsRr[0][i].CName != NULL)
+            printf("%s, ",dnsRr[0][i].CName);
+        if(dnsRr[0][i].ip != NULL)
+            printf("%s, ", dnsRr[0][i].ip);
+        if(dnsRr[0][i].MXName != NULL)
+            printf("%s, ",dnsRr[0][i].MXName);
+        printf("\n");
+    }
+    printf("00000000000000000000000000\n");
+
+    
+    //解析authority answer区域的回报
+    for (int i = 0; i < authoritiesNum; i++) {
+
+        bzero(aname, sizeof(aname));
+        len = 0;
+
+        dns_parse_name(buffer, ptr, aname, &len);
+        ptr += 2;
+        dnsRr[1][i].SearchName = (char*)calloc(strlen(aname) + 1, 1);
+        memcpy(dnsRr[1][i].SearchName, aname, strlen(aname));
+
+
+        dnsRr[1][i].type = htons(*(unsigned short*)ptr);
+        ptr += 4;
+
+        dnsRr[1][i].ttl = htons(*(unsigned short*)ptr);
+        ptr += 4;
+
+        dnsRr[1][i].data_len = ntohs(*(unsigned short*)ptr);
+        ptr += 2;
+        if(dnsRr[1][i].type == DNS_SOA){
+               //不需要解析这个类型
+            ptr += dnsRr[1][i].data_len;
+        }
+        else if (dnsRr[1][i].type == DNS_CNAME) {
+            bzero(cname, sizeof(cname));
+            len = 0;
+            dns_parse_name(buffer, ptr, cname, &len);
+            dnsRr[1][i].CName = (char*)calloc(strlen(cname) + 1, 1);
+            memcpy(dnsRr[1][i].CName, cname, strlen(cname));
+            ptr += dnsRr[1][i].data_len;
+        }
+        else if (dnsRr[1][i].type == DNS_HOST) {
+            bzero(ip, sizeof(ip));
+            if (dnsRr[1][i].data_len == 4) {
+                memcpy(netip, ptr, dnsRr[1][i].data_len);
+                inet_ntop(AF_INET, netip, ip, sizeof(struct sockaddr));
+                dnsRr[1][i].ip = (char*)calloc(strlen(ip) + 1, 1);
+                memcpy(dnsRr[1][i].ip, ip, strlen(ip));
+            }
+
+            ptr += dnsRr[1][i].data_len;
+        }
+        
+    }
+
+    for(int i = 0; i < authoritiesNum; i++){
+        printf("%s, ",dnsRr[1][i].SearchName);
+        printf("%d, ",dnsRr[1][i].type);
+        printf("%d, ",dnsRr[1][i].data_len);
+        if(dnsRr[1][i].CName != NULL)
+            printf("%s, ",dnsRr[1][i].CName);
+        if(dnsRr[1][i].ip != NULL)
+            printf("%s, ", dnsRr[1][i].ip);
+        printf("\n");
+    }
+
+    printf("1111111111111111111111111111111111\n");
+
+    //解析additional answer区域的回报
+    for (int i = 0; i < additionsNum; i++) {
+
+        bzero(aname, sizeof(aname));
+        len = 0;
+
+        dns_parse_name(buffer, ptr, aname, &len);
+        ptr += 2;
+        dnsRr[2][i].SearchName = (char*)calloc(strlen(aname) + 1, 1);
+        memcpy(dnsRr[2][i].SearchName, aname, strlen(aname));
+
+
+        dnsRr[2][i].type = htons(*(unsigned short*)ptr);
+        ptr += 4;
+
+        dnsRr[2][i].ttl = htons(*(unsigned short*)ptr);
+        ptr += 4;
+
+        dnsRr[2][i].data_len = ntohs(*(unsigned short*)ptr);
+        ptr += 2;
+        if(dnsRr[2][i].type == DNS_SOA){
+            //不需要解析这个类型
+            ptr += dnsRr[2][i].data_len;
+        }
+        else if (dnsRr[2][i].type == DNS_CNAME) {
+            bzero(cname, sizeof(cname));
+            len = 0;
+            dns_parse_name(buffer, ptr, cname, &len);
+            dnsRr[2][i].CName = (char*)calloc(strlen(cname) + 1, 1);
+            memcpy(dnsRr[2][i].CName, cname, strlen(cname));
+            ptr += dnsRr[2][i].data_len;
+        }
+        else if (dnsRr[2][i].type == DNS_HOST) {
+            bzero(ip, sizeof(ip));
+            if (dnsRr[2][i].data_len == 4) {
+                memcpy(netip, ptr, dnsRr[2][i].data_len);
+                inet_ntop(AF_INET, netip, ip, sizeof(struct sockaddr));
+                dnsRr[2][i].ip = (char*)calloc(strlen(ip) + 1, 1);
+                memcpy(dnsRr[2][i].ip, ip, strlen(ip));
+            }
+
+            ptr += dnsRr[2][i].data_len;
+        }
+
+    }
+
+    for(int i = 0; i < additionsNum; i++){
+        printf("%s, ",dnsRr[2][i].SearchName);
+        printf("%d, ",dnsRr[2][i].type);
+        printf("%d, ",dnsRr[2][i].data_len);
+        if(dnsRr[2][i].CName != NULL)
+            printf("%s, ",dnsRr[2][i].CName);
+        if(dnsRr[2][i].ip != NULL)
+            printf("%s, ", dnsRr[2][i].ip);
+        printf("\n");
+    }
+
+
+
+
+
+
+
 }
 
 int main(){
