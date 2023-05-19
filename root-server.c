@@ -6,6 +6,14 @@
 
 #define ROOT_SERVER_PORT 53
 
+
+void printHex(const char* string, size_t length) {
+    for (size_t i = 0; i < length; i++) {
+        printf("%02X ", (unsigned char)string[i]);
+    }
+    printf("\n");
+}
+
 // 处理 DNS 查询报文并返回响应报文
 void handle_dns_query(int client_sock) {
     // 接收查询报文长度字段
@@ -24,7 +32,11 @@ void handle_dns_query(int client_sock) {
         exit(1);
     }
 
+    printHex(query_packet,query_length);
+
+
     // 处理查询报文，构造响应报文
+
     char response_packet[200] = {0};
     // ...
 
