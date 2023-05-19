@@ -11,7 +11,7 @@
 #include <string.h>
 
 #define DNS_SERVER_PORT     53
-#define DNS_SERVER_IP       "1.1.1.1"
+#define DNS_SERVER_IP       "114.114.114.114"
 #define DNS_HOST			0x01
 #define DNS_CNAME			0x05
 #define DNS_SOA             0x06
@@ -118,6 +118,7 @@ void dns_create_question(struct DNS_Query *question, const char *hostname, int t
 
     free(new_hostname);  // 释放通过 strdup 函数分配的内存空间
 }
+
 int dns_build_request(struct DNS_Header *header, struct DNS_Query *question, char *request, int initLen){
     if (header == NULL || question == NULL || request == NULL)
     {
@@ -409,11 +410,6 @@ void dns_parse_response(char* buffer) {
             printf("%s, ", dnsRr[2][i].ip);
         printf("\n");
     }
-
-
-
-
-
 
 
 }
