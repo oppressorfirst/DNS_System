@@ -9,44 +9,15 @@
 #include <stdlib.h>
 #include <time.h>
 #include <string.h>
+#include "DNS.h"
 
 #define DNS_SERVER_PORT     53
-#define DNS_SERVER_IP       "114.114.114.114"
+#define DNS_SERVER_IP       "10.211.55.2"
 #define DNS_HOST			0x01
 #define DNS_CNAME			0x05
 #define DNS_SOA             0x06
 #define DNS_MX              0x0f
 #define DNS_PTR             0x0c
-
-struct DNS_Header{
-    unsigned short id; //2字节（16位）
-    unsigned short flags;
-
-    unsigned short questionsNum; //问题数
-    unsigned short answerNum; //回答数
-    unsigned short authorityNum;
-    unsigned short additionalNum;
-};
-
-struct DNS_Query{
-    unsigned char *name;        //要查询的主机名（长度不确定）
-    unsigned short qtype;
-    unsigned short qclass;
-    int length;     //主机名的长度
-};
-
-struct DNS_RR{
-    unsigned char *SearchName;
-    unsigned short type;
-    unsigned int ttl;
-    unsigned short data_len;
-    unsigned char *ip;
-    unsigned char *CName;
-    unsigned char *MXName;
-    unsigned char *PTRName;
-};
-
-
 
 
 int dns_create_header(struct DNS_Header *header)
@@ -147,10 +118,6 @@ int dns_build_request(struct DNS_Header *header, struct DNS_Query *question, cha
     return offset; //返回request数据的实际长度
 }
 
-int is_pointer(int in) {
-    return ((in & 0xC0) == 0xC0);
-}
-
 void dns_parse_name(unsigned char* chunk, unsigned char* ptr, char* out, int* len) {
     int flag = 0, n = 0;
     char* string = out + (*len);
@@ -215,7 +182,7 @@ void dns_parse_response(char* buffer) {
 
 
     //到了回答区域
-    char cname[128], aname[128], ip[20], netip[4];
+    char cname[128], aname[128], ip[20], netip[20];
     int len;
 
 
@@ -298,16 +265,16 @@ void dns_parse_response(char* buffer) {
 }
 }
 
-int main(){
+int main(int agrs,char *argv[]){
 
     printf("please input the domain you want to search:\n");
-    char domain[512];
-    scanf("%s",domain);
+    char domain[512] = {'w','w','w','.','b','a','i','d','u','.','c','o','m'};
+    //scanf("%s",domain);
 
     char temp[10];
     // 获取用户输入的类型
     printf("请输入记录类型（CNAME、A、MX、PTR）：");
-    scanf("%s", temp);
+    //scanf("%s", temp);
     int type;
     // 根据类型输出相应的值
     if (strcmp(temp, "CNAME") == 0) {
@@ -331,6 +298,7 @@ int main(){
     else {
         printf("无效的类型\n");
     }
+    type = 1;
 
     //1.创建UDP socket
     //网络层ipv4, 传输层用udp

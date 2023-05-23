@@ -3,15 +3,202 @@
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include "DNS.h"
 
 #define ROOT_SERVER_PORT 53
 
+struct DNS_Query dnsQuery;
+
+struct DNS_Header dnsHeader;
+
+char* searchName;
+
+struct DNS_RR dnsRr;
 
 void printHex(const char* string, size_t length) {
     for (size_t i = 0; i < length; i++) {
         printf("%02X ", (unsigned char)string[i]);
     }
     printf("\n");
+}
+
+void dns_create_header(){
+    //dnsheader的id在解析中已经记录了。
+    dnsHeader.flags = htons(0x8000);
+    dnsHeader.questionsNum = htons(1);    //询问报文的问题一般只有一个
+    dnsHeader.answerNum = htons(0);
+    dnsHeader.authorityNum = htons(1);
+    dnsHeader.additionalNum = htons(0);
+}
+
+void dns_create_reply(char* ltdName,char* response,int responseLen){
+    struct DNS_RR *reply = &dnsRr;
+
+    memset(reply, 0, sizeof(struct DNS_RR));
+    int ltdNameLen = strlen(ltdName);
+    int position=0;
+    for (int i = 0; i < responseLen; ++i) {
+        if(response[i]==ltdName[0]){
+            int temp = 1;
+            for (int j = 0; j < ltdNameLen; ++j) {
+                if(response[i+j]!=ltdName[j]) {
+                    temp = 0;
+                }
+            }
+            if(temp == 1){
+                position = i;
+                position--;
+                break;
+            }
+        }
+    }
+    if (position != 0) {
+        dnsRr.SearchName = malloc(ltdNameLen + 2);
+        dnsRr.SearchNameLen = 2;
+        dnsRr.SearchName[0]= 0xc0;
+        dnsRr.SearchName[1]= position;
+    }
+    else
+    {
+        dnsRr.SearchName = malloc(ltdNameLen + 2);
+        dnsRr.SearchNameLen = ltdNameLen+2;
+        const char delim[2] = ".";
+        char *qname =dnsRr.SearchName; //用于填充内容用的指针
+
+        //strdup先开辟大小与hostname同的内存，然后将hostname的字符拷贝到开辟的内存上
+        char *new_hostname = strdup(ltdName); //复制字符串，调用malloc
+        //将按照delim分割出字符串数组，返回第一个字符串
+        char *token = strtok(new_hostname, delim);
+
+        while (token != NULL)
+        {
+
+            size_t len = strlen(token);  // 获取当前子字符串的长度
+            *qname = len;  // 将长度存储到 qname 所指向的内存位置
+            qname++;  // 指针移动到下一个位置
+
+            strncpy(qname, token, len + 1);  // 复制当前子字符串到 qname 所指向的内存位置
+            qname += len;  // 指针移动到复制结束的位置
+
+            token = strtok(NULL, delim);  // 获取下一个子字符串
+        }
+
+        free(new_hostname);  // 释放通过 strdup 函数分配的内存空间
+    }
+    printHex(dnsRr.SearchName,dnsRr.SearchNameLen);
+    dnsRr.type= htons(1);
+    dnsRr.class = htons(1);
+    dnsRr.ttl = htonl(172800);
+    dnsRr.data_len = htons(4);
+    if(!strcmp(ltdName,"com")){
+        char ip[] = "104.208.117.37";
+        char netip[20];
+        inet_(AF_INET, netip, ip, sizeof(struct sockaddr));
+
+    }else if(!strcmp(ltdName,"cn")){
+        char ip[] = "35.241.75.140";
+    }else if(!strcmp(ltdName,"us")){
+        char ip[] = "35.220.181.128";
+    }else if(!strcmp(ltdName,"org")){
+        char ip[] = "20.24.143.210";
+    }
+
+
+}
+
+int createResponse(int offset, char *request){
+    if(offset == 0) {
+        memcpy(request, &dnsHeader, sizeof(struct DNS_Header));
+        offset = sizeof(struct DNS_Header);
+
+        //Queries部分字段写入到request中，question->length是question->name的长度
+        memcpy(request + offset, dnsQuery.name, dnsQuery.length);
+        offset += dnsQuery.length;
+
+        memcpy(request + offset, &dnsQuery.qtype, sizeof(dnsQuery.qtype));
+        offset += sizeof(dnsQuery.qtype);
+
+        memcpy(request + offset, &dnsQuery.qclass, sizeof(dnsQuery.qclass));
+        offset += sizeof(dnsQuery.qclass);
+    } else{
+        ;
+    }
+
+    return offset; //返回request数据的实际长度
+
+}
+void dns_create_question(struct DNS_Query *question, const char *hostname)
+{
+    if(question == NULL || hostname == NULL) {
+        printf("There is some problem in The DNS header struct or The domain you want to search!");
+        return ;
+    }
+
+
+    //内存空间长度：hostname长度 + 结尾\0 再多给一个空间
+    question->name = malloc(strlen(hostname) + 2);
+    if(question->name == NULL)
+    {
+        printf("内存分配出错了");
+        return ;
+    }
+
+    question->length =  (int)strlen(hostname) + 2;
+
+    //查询类1表示Internet数据
+    question->qclass = htons(1);
+
+    //【重要步骤】
+    //名字存储：www.0voice.com -> 3www60voice3com
+    const char delim[2] = ".";
+    char *qname = question->name; //用于填充内容用的指针
+
+    //strdup先开辟大小与hostname同的内存，然后将hostname的字符拷贝到开辟的内存上
+    char *new_hostname = strdup(hostname); //复制字符串，调用malloc
+    //将按照delim分割出字符串数组，返回第一个字符串
+    char *token = strtok(new_hostname, delim);
+
+    while (token != NULL)
+    {
+
+        size_t len = strlen(token);  // 获取当前子字符串的长度
+        *qname = len;  // 将长度存储到 qname 所指向的内存位置
+        qname++;  // 指针移动到下一个位置
+
+        strncpy(qname, token, len + 1);  // 复制当前子字符串到 qname 所指向的内存位置
+        qname += len;  // 指针移动到复制结束的位置
+
+        token = strtok(NULL, delim);  // 获取下一个子字符串
+    }
+
+    free(new_hostname);  // 释放通过 strdup 函数分配的内存空间
+}
+
+void dns_parse_query(char* buffer){
+    unsigned char *ptr = buffer;
+    dnsHeader.id = (*(unsigned short int *) ptr);
+    ptr += 2;
+    int flags = *(unsigned short int *) ptr;
+    //dnsHeader.flags = flags;
+    int bit = (flags >> 9) % 2;  // 获取指定位置的二进制位（从右往左，最低位为0）
+    if (bit == 1) {
+        printf("The received message has been truncated!");
+        return;
+    }
+
+    char qname[128];
+    bzero(qname, sizeof(qname));
+
+    int len = 0;
+    ptr += 10;
+    dns_parse_QueryName(buffer, ptr,qname,&len);
+
+    searchName = (char *) calloc(strlen(qname) + 1, 1);
+    memcpy(searchName, qname, strlen(qname));
+
+    ptr += (len+2);
+    dnsQuery.qtype = *(unsigned short *) ptr;
+    printf("%s   %d    %u\n",qname, len, dnsQuery.qtype);
 }
 
 // 处理 DNS 查询报文并返回响应报文
@@ -34,11 +221,19 @@ void handle_dns_query(int client_sock) {
 
     printHex(query_packet,query_length);
 
+    dns_parse_query(query_packet);
+    dns_create_header();
+    dns_create_question(&dnsQuery,searchName);
+    char response[513] = {0};
+    int  responseLen = 0;
+    responseLen += createResponse(responseLen,response);
+    printHex(response,responseLen);
 
-    // 处理查询报文，构造响应报文
+    char *ltdName = strrchr(searchName, '.');
 
-    char response_packet[200] = {0};
-    // ...
+    printf("最后一个顶级域名是：%s\n", ltdName + 1);
+    dns_create_reply(ltdName+1,response,responseLen);
+
 
     // 发送响应报文长度字段
 //    uint16_t response_length = strlen(response_packet);

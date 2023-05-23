@@ -3,9 +3,10 @@
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include "DNS.h"
 
 #define LOCAL_PORT 53
-#define ROOT_SERVER_IP "10.211.55.5"
+#define ROOT_SERVER_IP "127.0.0.1"
 #define ROOT_SERVER_PORT 53
 
 void printHex(const char* string, size_t length) {
@@ -58,8 +59,12 @@ void forward_dns_query(int query_length, char* query_packet) {
     // 发送查询报文
     if (send(tcp_sock, new_packet, query_length+2, 0)) {
         perror("Send failed");
-        exit(1);
+        //exit(1);
     }
+
+
+
+
 
 //    // 接收响应报文长度
 //    uint16_t response_length;
@@ -81,7 +86,7 @@ void forward_dns_query(int query_length, char* query_packet) {
     // ...
 
     // 关闭连接
-    close(tcp_sock);
+    //close(tcp_sock);
 }
 
 
@@ -132,9 +137,4 @@ int main() {
         // 将响应报文返回给客户端
         // ...
     }
-
-    // 关闭套接字
-    close(sock);
-
-    return 0;
 }
