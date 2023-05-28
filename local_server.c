@@ -84,10 +84,8 @@ void receive_client(){
             perror("Receive failed");
             exit(1);
         }
-        printf("%d\n",client_query_len);
-        printf("%d",client_query_len);
         printHex(client_query_packet,client_query_len);
-        printf("Received query from client\n");
+        printf("Received query from client\n\n");
 
 }
 
@@ -127,7 +125,7 @@ void initTcpSock(){
         exit(1);
     }
     net_server_addr.sin_family = AF_INET;
-    printf("%s\n",next_server_ip);
+    printf("这个是要进行查询的dns服务器%s\n\n",next_server_ip);
     net_server_addr.sin_addr.s_addr = inet_addr(next_server_ip);
     net_server_addr.sin_port = htons(ROOT_SERVER_PORT);
 
@@ -150,13 +148,11 @@ void  ask_net_server(){
     memcpy(shot_packet, askInformationLen, sizeof(askInformationLen));
     memcpy(shot_packet + sizeof(askInformationLen), client_query_packet, client_query_len + 1);
 
-   printHex(shot_packet, client_query_len + 2);
-
+    printHex(shot_packet, client_query_len + 2);
+    printf("打印发送的报文\n\n");
     // 发送查询报文
-    if (send(tcpSock, shot_packet, client_query_len + 2, 0)) {
-        perror("Send failed");
-        //exit(1);
-    }
+    send(tcpSock, shot_packet, client_query_len + 2, 0);
+
 
 }
 void receive_net_server(){
@@ -178,6 +174,7 @@ void receive_net_server(){
     }
 
     printHex(net_server_response, net_server_response_length);
+    printf("打印收到dns服务器的报文\n\n");
     close(tcpSock);
 }
 
@@ -269,13 +266,13 @@ void parse_server_response(){
             printf("%d, ",dnsRr[i].data_len);
             switch (dnsRr[i].type) {
                 case DNS_MX:
-                    printf("%s, ", dnsRr[i].MXName);
+                    printf("%s, \n", dnsRr[i].MXName);
                     break;
                 case DNS_HOST:
-                    printf("%s, ", dnsRr[i].ip);
+                    printf("%s, \n", dnsRr[i].ip);
                     break;
                 case DNS_CNAME:
-                    printf("%s, ", dnsRr[i].CName);
+                    printf("%s, \n", dnsRr[i].CName);
                     break;
             }
             printf("00000000000000000000000000\n");
@@ -305,6 +302,8 @@ int main() {
         memset(net_server_return_domain, 0 ,sizeof (net_server_return_domain));
         net_server_return_domain[0] = '!';
        // forward_dns_query(client_query_len, client_query_packet);
+
+        printf("完成了一次查询\n");
     }
 
 
