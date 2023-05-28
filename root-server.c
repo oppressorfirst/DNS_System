@@ -7,6 +7,7 @@
 
 #define ROOT_SERVER_PORT 53
 
+
 struct DNS_Query dnsQuery;
 
 struct DNS_Header dnsHeader;
@@ -21,13 +22,6 @@ void intToNetworkByteArray(int value, uint8_t* array) {
     uint16_t networkValue = htons((uint16_t)value);
     array[1] = (networkValue >> 8) & 0xFF;  // 高字节
     array[0] = networkValue & 0xFF;         // 低字节
-}
-
-void printHex(const char* string, size_t length) {
-    for (size_t i = 0; i < length; i++) {
-        printf("%02X ", (unsigned char)string[i]);
-    }
-    printf("\n");
 }
 
 void dns_create_header(){
@@ -170,6 +164,7 @@ int createResponse(int offset, char *request){
     return offset; //返回request数据的实际长度
 
 }
+
 void dns_create_question(struct DNS_Query *question, const char *hostname)
 {
     if(question == NULL || hostname == NULL) {

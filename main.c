@@ -147,7 +147,6 @@ void dns_parse_name(unsigned char* chunk, unsigned char* ptr, char* out, int* le
 
 }
 
-
 void dns_parse_response(char* buffer) {
 
     unsigned char *ptr = buffer;

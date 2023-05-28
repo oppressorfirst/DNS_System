@@ -35,6 +35,7 @@ struct DNS_RR{
     unsigned short class;
 };
 
+void intToNetworkByteArray(int value, uint8_t* array);
 
 int is_pointer(int in) {
     return ((in & 0xC0) == 0xC0);
@@ -67,6 +68,13 @@ void dns_parse_QueryName(unsigned char* chunk, unsigned char* ptr, char* out, in
 
     }
 
+}
+
+void printHex(const char* string, size_t length) {
+    for (size_t i = 0; i < length; i++) {
+        printf("%02X ", (unsigned char)string[i]);
+    }
+    printf("\n");
 }
 
 
