@@ -96,7 +96,7 @@ void dns_create_reply(char* ltdName,char* response,int responseLen){
     uint32_t dns_address = 0;
 
     if(!strcmp(ltdName,"com")){
-        char ip[] = "104.208.117.37";
+        char ip[] = "114.114.114.114";
         unsigned char ip_parts[4];
         sscanf(ip, "%hhu.%hhu.%hhu.%hhu", &ip_parts[0], &ip_parts[1], &ip_parts[2], &ip_parts[3]);
         dns_address = (ip_parts[0] << 24) | (ip_parts[1] << 16) | (ip_parts[2] << 8) | ip_parts[3];

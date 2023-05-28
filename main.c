@@ -159,7 +159,6 @@ void dns_parse_response(char* buffer) {
         return;
     }
 
-    struct DNS_Query dnsQuery;
     ptr += 4;
     int answersNum = ntohs(*(unsigned short *) ptr);
     ptr += 2;
@@ -267,7 +266,7 @@ void dns_parse_response(char* buffer) {
 int main(int agrs,char *argv[]){
 
     printf("please input the domain you want to search:\n");
-    char domain[512] = {'w','w','w','.','b','a','i','d','u','.','o','r','g'};
+    char domain[512] = {'w','w','w','.','b','a','i','d','u','.','c','o','m'};
     //scanf("%s",domain);
 
     char temp[10];

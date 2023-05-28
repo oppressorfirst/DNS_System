@@ -25,9 +25,7 @@ char net_server_response[1024];
 int client_query_len;
 char client_query_packet[1024];
 char client_wanted_domain[128];
-int client_wanted_domain_Len;
 char net_server_return_domain[128];
-int net_server_return_domain_Len;
 char *next_server_ip = "127.0.0.1";
 
 
@@ -118,7 +116,8 @@ void get_client_wanted_domain(){
     unsigned char *ptr = client_query_packet;
     memset(client_wanted_domain,0,sizeof (client_wanted_domain));
     ptr += 12;
-    dns_parse_name( client_query_packet, ptr, client_wanted_domain, &client_wanted_domain_Len);
+    int len = 0;
+    dns_parse_name( client_query_packet, ptr, client_wanted_domain, &len);
 }
 
 void initTcpSock(){
@@ -128,6 +127,7 @@ void initTcpSock(){
         exit(1);
     }
     net_server_addr.sin_family = AF_INET;
+    printf("%s\n",next_server_ip);
     net_server_addr.sin_addr.s_addr = inet_addr(next_server_ip);
     net_server_addr.sin_port = htons(ROOT_SERVER_PORT);
 
@@ -191,7 +191,15 @@ void parse_server_response(){
         printf("The received message has been truncated!");
         return;
     }
-    ptr += 10;
+    ptr += 4;
+    int answersNum = ntohs(*(unsigned short *) ptr);
+    ptr += 2;
+    int authoritiesNum = ntohs(*(unsigned short *) ptr);
+    ptr += 2;
+    int additionsNum = ntohs(*(unsigned short *) ptr);
+    int allRRNum = answersNum + authoritiesNum + additionsNum;
+    int Num[3] = {answersNum, authoritiesNum, additionsNum};
+    ptr += 2;
     //将问题报文中的网址直接跳过，放到后面读取
     while (1) {
         int flag = (int) ptr[0];
@@ -200,9 +208,80 @@ void parse_server_response(){
     }
     ptr += 4;
 
-    memset(net_server_return_domain, 0 ,sizeof (net_server_return_domain));
-    net_server_return_domain_Len = 0;
-    dns_parse_name( net_server_response, ptr, net_server_return_domain, &net_server_return_domain_Len);
+    char cname[128], ip[20], netip[20];
+    int len;
+    int times = 0;
+    struct DNS_RR dnsRr[allRRNum];
+    memset(net_server_return_domain, 0, sizeof(net_server_return_domain));
+
+    for (int j = 0; j < 3; j++) {
+        //解析汇报区域
+        for (int i = 0; i < Num[j]; i++) {
+
+            len = 0;
+            if(!times) {
+                dns_parse_name(net_server_response, ptr, net_server_return_domain, &len);
+                times++;
+
+            }
+
+            ptr += 2;
+            dnsRr[i].type = htons(*(unsigned short *) ptr);
+
+            ptr += 4;
+            dnsRr[i].ttl = htonl(*(int *) ptr);
+
+            ptr += 4;
+            dnsRr[i].data_len = ntohs(*(unsigned short *) ptr);
+
+            ptr += 2;
+            if (dnsRr[i].type == DNS_CNAME) {
+                bzero(cname, sizeof(cname));
+                len = 0;
+                dns_parse_name(net_server_response, ptr, cname, &len);
+                ptr += dnsRr[i].data_len;
+                dnsRr[i].CName = (char *) calloc(strlen(cname) + 1, 1);
+                memcpy(dnsRr[i].CName, cname, strlen(cname));
+            } else if (dnsRr[i].type == DNS_HOST) {
+                bzero(ip, sizeof(ip));
+                if (dnsRr[i].data_len == 4) {
+                    memcpy(netip, ptr, dnsRr[i].data_len);
+                    inet_ntop(AF_INET, netip, ip, sizeof(struct sockaddr));
+                    dnsRr[i].ip = (char *) calloc(strlen(ip) + 1, 1);
+                    memcpy(dnsRr[i].ip, ip, strlen(ip));
+                    next_server_ip= (char *) calloc(strlen(ip) + 1, 1);
+                    memcpy(next_server_ip, ip, strlen(ip));
+                }
+                ptr += dnsRr[i].data_len;
+            } else if (dnsRr[i].type == DNS_MX) {
+                ptr += 2;
+                bzero(cname, sizeof(cname));
+                len = 0;
+                dns_parse_name(net_server_response, ptr, cname, &len);
+                dnsRr[i].MXName = (char *) calloc(strlen(cname) + 1, 1);
+                memcpy(dnsRr[i].MXName, cname, strlen(cname));
+                ptr += dnsRr[i].data_len - 2;
+            }
+        }
+        for(int i = 0; i < Num[j]; i++){
+           printf("type: %d, ",dnsRr[i].type);
+            printf("ttl: %d, ", dnsRr[i].ttl);
+            printf("%d, ",dnsRr[i].data_len);
+            switch (dnsRr[i].type) {
+                case DNS_MX:
+                    printf("%s, ", dnsRr[i].MXName);
+                    break;
+                case DNS_HOST:
+                    printf("%s, ", dnsRr[i].ip);
+                    break;
+                case DNS_CNAME:
+                    printf("%s, ", dnsRr[i].CName);
+                    break;
+            }
+            printf("00000000000000000000000000\n");
+        }
+    }
+
 }
 
 
@@ -213,16 +292,14 @@ int main() {
 
         memset(net_server_return_domain, 0 ,sizeof (net_server_return_domain));
         net_server_return_domain[0] = '!';
-        int attempt =20;
 
         receive_client();
         get_client_wanted_domain();
-        while(strcmp(net_server_return_domain, client_wanted_domain) != 0 && attempt--){
+        while(strcmp(net_server_return_domain, client_wanted_domain) != 0){
             initTcpSock();
             ask_net_server();
             receive_net_server();
             parse_server_response();
-            printf("%s\n",net_server_return_domain);
         }
         //sendto_client();
         memset(net_server_return_domain, 0 ,sizeof (net_server_return_domain));
