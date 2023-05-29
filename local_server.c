@@ -287,6 +287,7 @@ int main() {
     initUdpSock();
     while (1) {
 
+
         memset(net_server_return_domain, 0 ,sizeof (net_server_return_domain));
         net_server_return_domain[0] = '!';
 
