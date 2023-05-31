@@ -33,6 +33,7 @@ struct DNS_RR{
     unsigned char *MXName;
     unsigned char *PTRName;
     unsigned short class;
+    time_t updateTime;
 };
 
 void intToNetworkByteArray(int value, uint8_t* array);

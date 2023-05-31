@@ -12,7 +12,7 @@
 #include "DNS.h"
 
 #define DNS_SERVER_PORT     53
-#define DNS_SERVER_IP       "10.211.55.2"
+#define DNS_SERVER_IP       "127.0.0.1"
 #define DNS_HOST			0x01
 #define DNS_CNAME			0x05
 #define DNS_SOA             0x06
@@ -296,7 +296,8 @@ int main(int agrs,char *argv[]){
     else {
         printf("无效的类型\n");
     }
-    type = 1;
+
+    type = 5;
 
     //1.创建UDP socket
     //网络层ipv4, 传输层用udp

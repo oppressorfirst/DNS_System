@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <time.h>
 #include "DNS.h"
 
 #define LOCAL_PORT 53
@@ -26,18 +27,26 @@ int client_query_len;
 char client_query_packet[1024];
 char client_wanted_domain[128];
 char net_server_return_domain[128];
-char *next_server_ip = "127.0.0.1";
+char *next_server_ip = "10.211.55.13";
+int local_cache_num;
+int existCache;
+struct DNS_RR dnsCache[100];
+struct DNS_Query dnsQuery;
+struct DNS_Header dnsHeader;
 
 
 void  get_client_wanted_domain();
+void initSystem();
+void appendStructToCSV(const char* filename, struct DNS_RR* dnsRr);
 void parse_server_response();
 void receive_net_server();
-void  initTcpSock();
-void  ask_net_server();
+void initTcpSock();
+void ask_net_server();
 void intToNetworkByteArray(int value, uint8_t* array);
 void receive_client();
 void initUdpSock();
-void sendto_client();
+void dns_parse_query(char* buffer);
+void sendto_client(int num, int type);
 
 
 void dns_parse_name(unsigned char* chunk, unsigned char* ptr, char* out, int* len) {
@@ -86,7 +95,7 @@ void receive_client(){
         }
         printHex(client_query_packet,client_query_len);
         printf("Received query from client\n\n");
-
+        dns_parse_query(client_query_packet);
 }
 
 void initUdpSock(){
@@ -134,8 +143,188 @@ void initTcpSock(){
     }
 }
 
-void sendto_clent(){        //实现
+void dns_create_header(){
+    //dnsheader的id在解析中已经记录了。
+    dnsHeader.flags = htons(0x8180);
+    dnsHeader.questionsNum = htons(1);    //询问报文的问题一般只有一个
+    dnsHeader.answerNum = htons(1);
+    dnsHeader.authorityNum = htons(0);
+    if(dnsQuery.qtype == htons(15)) {
+        dnsHeader.additionalNum = htons(1);
+    } else{
+        dnsHeader.additionalNum = htons(0);
+    }
+}
 
+void dns_create_question(struct DNS_Query *question, const char *hostname)
+{
+    if(question == NULL || hostname == NULL) {
+        printf("There is some problem in The DNS header struct or The domain you want to search!");
+        return ;
+    }
+
+
+    //内存空间长度：hostname长度 + 结尾\0 再多给一个空间
+    question->name = malloc(strlen(hostname) + 2);
+    if(question->name == NULL)
+    {
+        printf("内存分配出错了");
+        return ;
+    }
+
+    question->length =  (int)strlen(hostname) + 2;
+
+    //查询类1表示Internet数据
+    question->qclass = htons(1);
+
+    //【重要步骤】
+    //名字存储：www.0voice.com -> 3www60voice3com
+    const char delim[2] = ".";
+    char *qname = question->name; //用于填充内容用的指针
+
+    //strdup先开辟大小与hostname同的内存，然后将hostname的字符拷贝到开辟的内存上
+    char *new_hostname = strdup(hostname); //复制字符串，调用malloc
+    //将按照delim分割出字符串数组，返回第一个字符串
+    char *token = strtok(new_hostname, delim);
+
+    while (token != NULL)
+    {
+
+        size_t len = strlen(token);  // 获取当前子字符串的长度
+        *qname = len;  // 将长度存储到 qname 所指向的内存位置
+        qname++;  // 指针移动到下一个位置
+
+        strncpy(qname, token, len + 1);  // 复制当前子字符串到 qname 所指向的内存位置
+        qname += len;  // 指针移动到复制结束的位置
+
+        token = strtok(NULL, delim);  // 获取下一个子字符串
+    }
+
+    free(new_hostname);  // 释放通过 strdup 函数分配的内存空间
+}
+
+
+int createResponse(int offset, char *request) {
+    memcpy(request, &dnsHeader, sizeof(struct DNS_Header));
+    offset = sizeof(struct DNS_Header);
+
+    //Queries部分字段写入到request中，question->length是question->name的长度
+    memcpy(request + offset, dnsQuery.name, dnsQuery.length);
+    offset += dnsQuery.length;
+
+    memcpy(request + offset, &dnsQuery.qtype, sizeof(dnsQuery.qtype));
+    offset += sizeof(dnsQuery.qtype);
+
+    memcpy(request + offset, &dnsQuery.qclass, sizeof(dnsQuery.qclass));
+    offset += sizeof(dnsQuery.qclass);
+    printHex(request,offset);
+    return offset; //返回request数据的实际长度
+}
+
+int createRRResponse(int offset, char *request, struct DNS_RR dnsRr){
+
+        memcpy(request + offset, dnsRr.SearchName, dnsRr.SearchNameLen);
+        offset += dnsRr.SearchNameLen;
+
+        memcpy(request + offset, &dnsRr.type, sizeof(dnsRr.type));
+        offset += sizeof(dnsRr.type);
+
+        memcpy(request + offset, &dnsRr.class, sizeof(dnsRr.class));
+        offset += sizeof(dnsRr.class);
+
+        memcpy(request + offset, &dnsRr.ttl, sizeof(dnsRr.ttl));
+        offset += sizeof(dnsRr.ttl);
+
+        memcpy(request + offset, &dnsRr.data_len, sizeof(dnsRr.data_len));
+        offset += sizeof(dnsRr.data_len);
+
+        memcpy(request + offset, dnsRr.ip, 4);
+        offset += 4;
+    printHex(request,offset);
+    return offset; //返回request数据的实际长度
+
+}
+void buildRR(struct DNS_RR dnsRr, int num){
+    dnsRr.SearchName = malloc(strlen(dnsCache[num].SearchName) + 2);
+    if(dnsRr.SearchName == NULL)
+    {
+        printf("内存分配出错了");
+        return ;
+    }
+
+    dnsRr.SearchNameLen =  (int)strlen(dnsCache[num].SearchName) + 2;
+
+    dnsRr.class = htons(1);
+    dnsRr.type = htons(dnsCache[num].type);
+    //【重要步骤】
+    //名字存储：www.0voice.com -> 3www60voice3com
+    const char delim[2] = ".";
+    char *qname =  dnsRr.SearchName; //用于填充内容用的指针
+
+    //strdup先开辟大小与hostname同的内存，然后将hostname的字符拷贝到开辟的内存上
+    char *new_hostname = strdup(dnsCache[num].SearchName); //复制字符串，调用malloc
+    //将按照delim分割出字符串数组，返回第一个字符串
+    char *token = strtok(new_hostname, delim);
+
+    while (token != NULL)
+    {
+
+        size_t len = strlen(token);  // 获取当前子字符串的长度
+        *qname = len;  // 将长度存储到 qname 所指向的内存位置
+        qname++;  // 指针移动到下一个位置
+
+        strncpy(qname, token, len + 1);  // 复制当前子字符串到 qname 所指向的内存位置
+        qname += len;  // 指针移动到复制结束的位置
+
+        token = strtok(NULL, delim);  // 获取下一个子字符串
+    }
+
+    free(new_hostname);  // 释放通过 strdup 函数分配的内存空间
+}
+
+void sendto_client(int num, int type){        //实现
+    type = ntohs(type);
+    dns_create_header();
+    int offset = 0;
+    char response[513] = {0};
+    offset += createResponse(offset, response);
+    printf(")))))))))))))))))))))))\n");
+    if(type == 1){
+
+        struct DNS_RR temp;
+        memset(&temp, 0, sizeof(struct DNS_RR));
+        buildRR(temp, num);
+        printf("%s((((((((((((((((((((((((((((((((((((((((\n", temp.SearchName);
+        offset+=createRRResponse(offset,response,dnsCache[num]);
+    }
+
+}
+
+void dns_parse_query(char* buffer){
+    unsigned char *ptr = buffer;
+    dnsHeader.id = (*(unsigned short int *) ptr);
+    ptr += 2;
+    int flags = *(unsigned short int *) ptr;
+    //dnsHeader.flags = flags;
+    int bit = (flags >> 9) % 2;  // 获取指定位置的二进制位（从右往左，最低位为0）
+    if (bit == 1) {
+        printf("The received message has been truncated!");
+        return;
+    }
+
+    char qname[128];
+    bzero(qname, sizeof(qname));
+
+    int len = 0;
+    ptr += 10;
+    dns_parse_QueryName(buffer, ptr,qname,&len);
+
+    dnsQuery.name = (char *) calloc(strlen(qname) + 1, 1);
+    memcpy(dnsQuery.name, qname, strlen(qname));
+
+    ptr += (len+2);
+    dnsQuery.qtype = *(unsigned short *) ptr;
+    printf("%s   %d   %u\n",dnsQuery.name, len, dnsQuery.qtype);
 }
 
 void  ask_net_server(){
@@ -219,8 +408,10 @@ void parse_server_response(){
             if(!times) {
                 dns_parse_name(net_server_response, ptr, net_server_return_domain, &len);
                 times++;
-
             }
+            dnsRr[i].SearchName = (char *) calloc(strlen(net_server_return_domain) + 1, 1);
+            memcpy(dnsRr[i].SearchName, net_server_return_domain, strlen(net_server_return_domain));
+
 
             ptr += 2;
             dnsRr[i].type = htons(*(unsigned short *) ptr);
@@ -261,7 +452,7 @@ void parse_server_response(){
             }
         }
         for(int i = 0; i < Num[j]; i++){
-           printf("type: %d, ",dnsRr[i].type);
+            printf("type: %d, ",dnsRr[i].type);
             printf("ttl: %d, ", dnsRr[i].ttl);
             printf("%d, ",dnsRr[i].data_len);
             switch (dnsRr[i].type) {
@@ -277,36 +468,196 @@ void parse_server_response(){
             }
             printf("00000000000000000000000000\n");
         }
+
+        for (int i = 0; i < Num[j]; ++i) {
+            if (strcmp(client_wanted_domain, dnsRr[i].SearchName) == 0 && dnsRr[i].type == ntohs(dnsQuery.qtype)) {
+                dnsCache[local_cache_num].SearchName = dnsRr[i].SearchName;
+                dnsCache[local_cache_num].ttl = dnsRr[i].ttl;
+                time(&dnsCache[local_cache_num].updateTime);
+                //printf("Current timestamp: %ld\n", dnsCache[local_cache_num].updateTime);
+                dnsCache[local_cache_num].updateTime += dnsCache[local_cache_num].ttl;
+                //printf("added timestamp: %ld\n", dnsCache[local_cache_num].updateTime);
+                dnsCache[local_cache_num].data_len = dnsRr[i].data_len;
+                dnsCache[local_cache_num].class = 1;
+                dnsCache[local_cache_num].type = dnsRr[i].type;
+                switch (dnsRr[i].type) {
+                    case DNS_MX:
+                        dnsCache[local_cache_num].MXName = dnsRr[i].MXName;
+                        break;
+                    case DNS_HOST:
+                        dnsCache[local_cache_num].ip = dnsRr[i].ip;
+                        break;
+                    case DNS_CNAME:
+                        dnsCache[local_cache_num].CName = dnsRr[i].CName;
+                        break;
+                    case DNS_PTR:
+                        dnsCache[local_cache_num].PTRName = dnsRr[i].PTRName;
+                        break;
+                }
+                appendStructToCSV("cache.csv", (struct DNS_RR *) &dnsCache[local_cache_num]);
+                local_cache_num++;
+            }
+        }
+        printf("\n\n%d\nMMMMMMMMMMMMMMMMMMMMMMMMMMM\n",local_cache_num);
+
+
     }
 
 }
 
+void appendStructToCSV(const char* filename, struct DNS_RR* dnsRr) {
+    FILE* file = fopen(filename, "a");
+    if (file == NULL) {
+        printf("无法打开文件\n");
+        return;
+    }
+    fprintf(file, "%s,%d,IN,", dnsRr->SearchName, dnsRr->ttl);
+
+    if (dnsRr->type == 5) {
+        fprintf(file, "CNAME,");
+        fprintf(file, "%s\n", dnsRr->CName);
+    } else if (dnsRr->type == 1) {
+        fprintf(file, "A,");
+        fprintf(file, "%s\n", dnsRr->ip);
+    } else if (dnsRr->type == 15) {
+        fprintf(file, "MX,");
+        fprintf(file, "%s\n", dnsRr->MXName);
+    } else if(dnsRr->type == 12){
+        fprintf(file, "PTR,");
+        fprintf(file, "%s\n", dnsRr->PTRName);
+    } else{
+        printf("error\n\n");
+    }
+
+
+
+
+    fclose(file);
+}
+
+void initSystem(){
+    local_cache_num = 0;
+    next_server_ip = "10.211.55.13";
+    memset(net_server_return_domain, 0 ,sizeof (net_server_return_domain));
+    net_server_return_domain[0] = '!';
+
+    FILE *fp = fopen("cache.csv", "r");
+    if (fp == NULL) {
+        fprintf(stderr, "fopen() failed.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    char row[80];
+    char *token;
+
+    while (fgets(row, 80, fp) != NULL) {
+        row[strcspn(row, "\n")] = '\0'; // 去除行末的换行符
+
+        token = strtok(row, ",");
+        dnsCache[local_cache_num].SearchName = (char *) calloc(strlen(token) + 1, 1);
+        memcpy(dnsCache[local_cache_num].SearchName, token, strlen(token));
+       //printf("SearchName: %s\n", dnsCache[local_cache_num].SearchName);
+
+
+        token = strtok(NULL, ",");
+        dnsCache[local_cache_num].ttl = atoi(token);
+        //printf("ttl: %d\n", dnsCache[local_cache_num].ttl);
+        time(&dnsCache[local_cache_num].updateTime);
+        //printf("Current timestamp: %ld\n", dnsCache[local_cache_num].updateTime);
+        dnsCache[local_cache_num].updateTime += dnsCache[local_cache_num].ttl;
+        //printf("added timestamp: %ld\n", dnsCache[local_cache_num].updateTime);
+
+        token = strtok(NULL, ",");
+        if (!strcmp(token, "IN")){
+            dnsCache[local_cache_num].class = 1;
+        }
+        //printf("class: %d\n", dnsCache[local_cache_num].class);
+
+
+        token = strtok(NULL, ",");
+        //printf("%s\n", token);
+        if (strcmp(token, "CNAME") == 0) {
+            dnsCache[local_cache_num].type = 5;
+
+            token = strtok(NULL, ",");
+
+            dnsCache[local_cache_num].CName = (char *) calloc(strlen(token) + 1, 1);
+            memcpy(dnsCache[local_cache_num].CName, token, strlen(token));
+
+
+            //printf("CNAME: %s\n\n", dnsCache[local_cache_num].CName);
+            // 在此处添加处理 CNAME 类型的代码
+        } else if (strcmp(token, "A") == 0) {
+            dnsCache[local_cache_num].type = 1;
+
+            token = strtok(NULL, ",");
+
+            dnsCache[local_cache_num].ip = (char *) calloc(strlen(token) + 1, 1);
+            memcpy(dnsCache[local_cache_num].ip, token, strlen(token));
+            // 在此处添加处理 A 类型的代码
+            //printf("IP: %s\n\n", dnsCache[local_cache_num].ip);
+        } else if (strcmp(token, "MX") == 0) {
+            dnsCache[local_cache_num].type = 15;
+
+            token = strtok(NULL, ",");
+
+            dnsCache[local_cache_num].MXName = (char *) calloc(strlen(token) + 1, 1);
+            memcpy(dnsCache[local_cache_num].MXName, token, strlen(token));
+            // 在此处添加处理 MX 类型的代码
+           // printf("MXName: %s\n\n", dnsCache[local_cache_num].MXName);
+        } else if(strcmp(token, "PTR") == 0){
+            dnsCache[local_cache_num].type = 12;
+
+            token = strtok(NULL, ",");
+
+            dnsCache[local_cache_num].MXName = (char *) calloc(strlen(token) + 1, 1);
+            memcpy(dnsCache[local_cache_num].MXName, token, strlen(token));
+            //printf("PTRName: %s\n\n", dnsCache[local_cache_num].PTRName);
+        } else{
+            printf("error\n\n");
+        }
+        local_cache_num++;
+    }
+    existCache = local_cache_num;
+    fclose(fp);
+}
+
+void sendto_AuthToClient(){
+    sendto(udpSock, net_server_response, net_server_response_length, 0, (struct sockaddr *)&client_addr, sizeof(struct sockaddr));
+}
 
 int main() {
+
 
     initUdpSock();
     while (1) {
 
-
-        memset(net_server_return_domain, 0 ,sizeof (net_server_return_domain));
-        net_server_return_domain[0] = '!';
-
+        initSystem();
         receive_client();
         get_client_wanted_domain();
-        while(strcmp(net_server_return_domain, client_wanted_domain) != 0){
-            initTcpSock();
-            ask_net_server();
-            receive_net_server();
-            parse_server_response();
+        dns_create_question(&dnsQuery, client_wanted_domain);
+        int isCached = 0;
+        for (int i = 0; i < local_cache_num; ++i) {
+            if (strcmp(dnsCache[i].SearchName, client_wanted_domain) == 0 && dnsCache[i].type == ntohs(dnsQuery.qtype)) {
+                isCached = i;
+            }
         }
-        //sendto_client();
-        memset(net_server_return_domain, 0 ,sizeof (net_server_return_domain));
-        net_server_return_domain[0] = '!';
-       // forward_dns_query(client_query_len, client_query_packet);
 
+        if (isCached == 0) {
+            while (strcmp(net_server_return_domain, client_wanted_domain) != 0) {
+                initTcpSock();
+                ask_net_server();
+                receive_net_server();
+                parse_server_response();
+            }
+            sendto_AuthToClient();
+            memset(net_server_return_domain, 0, sizeof(net_server_return_domain));
+            net_server_return_domain[0] = '!';
+            // forward_dns_query(client_query_len, client_query_packet);
+        } else{
+            sendto_client(isCached, dnsQuery.qtype);
+        }
         printf("完成了一次查询\n");
     }
-
-
 
 }
