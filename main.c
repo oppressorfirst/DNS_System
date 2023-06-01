@@ -194,19 +194,27 @@ void dns_parse_response(char* buffer) {
         len = 0;
 
         dns_parse_name(buffer, ptr, aname, &len);
+
+
         ptr += 2;
         dnsRr[i].SearchName = (char *) calloc(strlen(aname) + 1, 1);
         memcpy(dnsRr[i].SearchName, aname, strlen(aname));
 
 
         dnsRr[i].type = htons(*(unsigned short *) ptr);
-        ptr += 4;
 
+
+        ptr += 4;
         dnsRr[i].ttl = htonl(*(int *) ptr);
-        ptr += 4;
 
+        ptr += 4;
         dnsRr[i].data_len = ntohs(*(unsigned short *) ptr);
+
         ptr += 2;
+        if (dnsRr[i].type == DNS_MX) {
+            dnsRr[i].preference = ntohs(*(unsigned short *) ptr);
+            ptr+=2;
+        }
 
         if (dnsRr[i].type == DNS_SOA) {
             //不需要解析这个类型
@@ -228,7 +236,6 @@ void dns_parse_response(char* buffer) {
             }
             ptr += dnsRr[i].data_len;
         } else if (dnsRr[i].type == DNS_MX) {
-            ptr += 2;
             bzero(cname, sizeof(cname));
             len = 0;
             dns_parse_name(buffer, ptr, cname, &len);
@@ -266,10 +273,10 @@ void dns_parse_response(char* buffer) {
 int main(int agrs,char *argv[]){
 
     printf("please input the domain you want to search:\n");
-    char domain[512] = {'w','w','w','.','b','a','i','d','u','.','c','o','m'};
+    //char domain[512] = {'w','w','w','.','y','r','z','.','c','o','m'};
     //scanf("%s",domain);
-
-    char temp[10];
+    char domain[512] = {'1','.','1','.','1','.','1'};
+    char temp[10]= {'P','T','R'};
     // 获取用户输入的类型
     printf("请输入记录类型（CNAME、A、MX、PTR）：");
     //scanf("%s", temp);
@@ -297,7 +304,7 @@ int main(int agrs,char *argv[]){
         printf("无效的类型\n");
     }
 
-    type = 5;
+    //type = 5;
 
     //1.创建UDP socket
     //网络层ipv4, 传输层用udp

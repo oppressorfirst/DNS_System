@@ -235,31 +235,52 @@ int createRRResponse(int offset, char *request, struct DNS_RR dnsRr){
         memcpy(request + offset, &dnsRr.ttl, sizeof(dnsRr.ttl));
         offset += sizeof(dnsRr.ttl);
 
-        memcpy(request + offset, &dnsRr.data_len, sizeof(dnsRr.data_len));
+       unsigned short len = htons((int)dnsRr.data_len);
+       printf("dnsRr.data_len    %d\n",dnsRr.data_len);
+        memcpy(request + offset, &len, sizeof(dnsRr.data_len));
         offset += sizeof(dnsRr.data_len);
 
+   //    memcpy(request + offset, dnsRr.ip, 4);
+    //   offset += 4;
+
+
+
+    if (dnsRr.type  == htons(1)){
+        //A
         memcpy(request + offset, dnsRr.ip, 4);
         offset += 4;
+    }else if(dnsRr.type  == htons(5)){
+        //CNAME
+        memcpy(request + offset, dnsRr.CName, dnsRr.data_len);
+        offset += dnsRr.data_len;
+    } else if(dnsRr.type  == htons(15)){
+        //MX
+        memcpy(request + offset, &dnsRr.preference, 2);
+        offset += 2;
+        memcpy(request + offset, dnsRr.MXName, dnsRr.data_len);
+        offset += dnsRr.data_len-2;
+    } else if(dnsRr.type  == htons(12)){
+        //PTR
+        printHex(dnsRr.PTRName,dnsRr.data_len);
+        memcpy(request + offset, dnsRr.PTRName, dnsRr.data_len);
+        offset += dnsRr.data_len;
+    } else{
+        printf("error\n\n");
+    }
+
+
+
     printHex(request,offset);
     return offset; //返回request数据的实际长度
 
 }
-void buildRR(struct DNS_RR dnsRr, int num){
-    dnsRr.SearchName = malloc(strlen(dnsCache[num].SearchName) + 2);
-    if(dnsRr.SearchName == NULL)
-    {
-        printf("内存分配出错了");
-        return ;
-    }
+void buildRR(struct DNS_RR *dnsRr, int num, char* response,int responseLen){
 
-    dnsRr.SearchNameLen =  (int)strlen(dnsCache[num].SearchName) + 2;
-
-    dnsRr.class = htons(1);
-    dnsRr.type = htons(dnsCache[num].type);
-    //【重要步骤】
-    //名字存储：www.0voice.com -> 3www60voice3com
+    printf("builedRR     %s\n",dnsCache[num].SearchName);
+    dnsRr->SearchName = malloc(dnsCache[num].SearchNameLen + 2);
+    dnsRr->SearchNameLen = strlen(dnsCache[num].SearchName) + 2;
     const char delim[2] = ".";
-    char *qname =  dnsRr.SearchName; //用于填充内容用的指针
+    char *qname =dnsRr->SearchName; //用于填充内容用的指针
 
     //strdup先开辟大小与hostname同的内存，然后将hostname的字符拷贝到开辟的内存上
     char *new_hostname = strdup(dnsCache[num].SearchName); //复制字符串，调用malloc
@@ -280,6 +301,145 @@ void buildRR(struct DNS_RR dnsRr, int num){
     }
 
     free(new_hostname);  // 释放通过 strdup 函数分配的内存空间
+
+
+    printHex(dnsRr->SearchName,dnsRr->SearchNameLen);
+    int position=0;
+    for (int i = 0; i < responseLen; ++i) {
+        if(response[i]==dnsRr->SearchName[0]){
+            int temp = 1;
+            for (int j = 0; j < dnsRr->SearchNameLen; ++j) {
+                if(response[i+j]!=dnsRr->SearchName[j]) {
+                    temp = 0;
+
+                }
+
+            }
+            if(temp == 1){
+                position = i;
+                break;
+            }
+        }
+    }
+    printf("%d\n", position);
+    if (position != 0) {
+        dnsRr->SearchNameLen = 2;
+        dnsRr->SearchName = malloc( 2);
+        dnsRr->SearchName[0]= 0xc0;
+        dnsRr->SearchName[1]= position;
+    }
+
+    dnsRr->class = htons(1);
+    dnsRr->type = htons(dnsCache[num].type);
+    dnsRr->ttl = htonl(dnsCache[num].ttl);
+
+
+
+    if (dnsCache[num].type  == 1){
+        dnsRr->data_len= 4;
+        unsigned char ip_parts[4];
+        uint32_t dns_address = 0;
+        printf("%s\n",dnsCache[num].ip);
+        sscanf(dnsCache[num].ip, "%hhu.%hhu.%hhu.%hhu", &ip_parts[0], &ip_parts[1], &ip_parts[2], &ip_parts[3]);
+        dns_address = (ip_parts[0] << 24) | (ip_parts[1] << 16) | (ip_parts[2] << 8) | ip_parts[3];
+        dnsRr->ip = malloc(sizeof (unsigned char *)&dns_address);
+        uint32_t network_order = htonl(dns_address);
+        memcpy(dnsRr->ip, &network_order, sizeof(network_order));
+        printHex(dnsRr->ip,4);
+
+    }else if(dnsCache[num].type  == 5){
+        //CNAME
+        printf("CNMAE   %s\n",dnsCache[num].CName);
+
+        dnsRr->data_len = strlen (dnsCache[num].CName)+2;
+        const char delim[2] = ".";
+        dnsRr->CName = malloc(sizeof (dnsRr->data_len));
+        char *qname = dnsRr->CName; //用于填充内容用的指针
+
+        //strdup先开辟大小与hostname同的内存，然后将hostname的字符拷贝到开辟的内存上
+        char *new_hostname = strdup(dnsCache[num].CName); //复制字符串，调用malloc
+        //将按照delim分割出字符串数组，返回第一个字符串
+        char *token = strtok(new_hostname, delim);
+
+
+        while (token != NULL)
+        {
+            size_t len = strlen(token);  // 获取当前子字符串的长度
+            *qname = len;  // 将长度存储到 qname 所指向的内存位置
+            qname++;  // 指针移动到下一个位置
+
+            strncpy(qname, token, len + 1);  // 复制当前子字符串到 qname 所指向的内存位置
+            qname += len;  // 指针移动到复制结束的位置
+
+            token = strtok(NULL, delim);  // 获取下一个子字符串
+        }
+
+        free(new_hostname);  // 释放通过 strdup 函数分配的内存空间
+
+
+        printf("000000000000000000000000\n");
+    } else if(dnsCache[num].type  == 15){
+        //MX
+        dnsRr->preference = htons(dnsCache[num].preference);
+        dnsRr->data_len = strlen (dnsCache[num].MXName)+4;
+        dnsRr->MXName = malloc(sizeof (dnsRr->data_len));
+        const char delim[2] = ".";
+        char *qname = dnsRr->MXName; //用于填充内容用的指针
+
+        //strdup先开辟大小与hostname同的内存，然后将hostname的字符拷贝到开辟的内存上
+        char *new_hostname = strdup(dnsCache[num].MXName); //复制字符串，调用malloc
+        //将按照delim分割出字符串数组，返回第一个字符串
+        char *token = strtok(new_hostname, delim);
+
+        while (token != NULL)
+        {
+
+            size_t len = strlen(token);  // 获取当前子字符串的长度
+            *qname = len;  // 将长度存储到 qname 所指向的内存位置
+            qname++;  // 指针移动到下一个位置
+
+            strncpy(qname, token, len + 1);  // 复制当前子字符串到 qname 所指向的内存位置
+            qname += len;  // 指针移动到复制结束的位置
+
+            token = strtok(NULL, delim);  // 获取下一个子字符串
+        }
+
+        free(new_hostname);  // 释放通过 strdup 函数分配的内存空间
+    } else if(dnsCache[num].type  == 12){
+        //PTR
+        printf("%s\n",dnsCache[num].PTRName);
+        dnsRr->data_len = strlen (dnsCache[num].PTRName) + 2;
+        dnsRr->PTRName = malloc(sizeof (dnsRr->data_len));
+        memset(dnsRr->PTRName,0,sizeof (dnsRr->PTRName));
+        const char delim[2] = ".";
+        char *qname = dnsRr->PTRName; //用于填充内容用的指针
+        printf("9999999999999999\n");
+        //strdup先开辟大小与hostname同的内存，然后将hostname的字符拷贝到开辟的内存上
+        char *new_hostname = strdup(dnsCache[num].PTRName); //复制字符串，调用malloc
+        //将按照delim分割出字符串数组，返回第一个字符串
+        char *token = strtok(new_hostname, delim);
+
+        while (token != NULL)
+        {
+
+            size_t len = strlen(token);  // 获取当前子字符串的长度
+            *qname = len;  // 将长度存储到 qname 所指向的内存位置
+            qname++;  // 指针移动到下一个位置
+
+            strncpy(qname, token, len + 1);  // 复制当前子字符串到 qname 所指向的内存位置
+            qname += len;  // 指针移动到复制结束的位置
+
+            token = strtok(NULL, delim);  // 获取下一个子字符串
+        }
+        printHex(dnsRr->PTRName, dnsRr->data_len);
+        //free(new_hostname);  // 释放通过 strdup 函数分配的内存空间
+        //dnsRr->PTRName[dnsRr->data_len-1] = 0;
+    } else{
+        printf("error\n\n");
+    }
+
+
+
 }
 
 void sendto_client(int num, int type){        //实现
@@ -287,16 +447,33 @@ void sendto_client(int num, int type){        //实现
     dns_create_header();
     int offset = 0;
     char response[513] = {0};
-    offset += createResponse(offset, response);
+    offset = createResponse(offset, response);
     printf(")))))))))))))))))))))))\n");
-    if(type == 1){
+    struct DNS_RR temp, MX_NAME;
+    int MXpos = -1;
+    memset(&temp, 0, sizeof(struct DNS_RR));
+    memset(&MX_NAME, 0, sizeof(struct DNS_RR));
+    buildRR(&temp, num, response, offset);
+    printf("chulaile\n");
 
-        struct DNS_RR temp;
-        memset(&temp, 0, sizeof(struct DNS_RR));
-        buildRR(temp, num);
-        printf("%s((((((((((((((((((((((((((((((((((((((((\n", temp.SearchName);
-        offset+=createRRResponse(offset,response,dnsCache[num]);
+    if (temp.type == htons(12))
+        printHex(temp.PTRName,temp.data_len);
+
+    offset = createRRResponse(offset,response,temp);
+    if(dnsCache[num].type == 15) {
+        for (int i = 0; i < local_cache_num; ++i) {
+            if (strcmp(dnsCache[num].MXName, dnsCache[i].SearchName) == 0) {
+                MXpos = i;
+                break;
+            }
+        }
+        printf("%d\n",MXpos);
+        buildRR(&MX_NAME, MXpos, response, offset);
+        offset = createRRResponse(offset,response,MX_NAME);
     }
+
+
+    sendto(udpSock,response,offset,0,(struct sockaddr *)&client_addr, sizeof(struct sockaddr));
 
 }
 
@@ -422,6 +599,10 @@ void parse_server_response(){
             ptr += 4;
             dnsRr[i].data_len = ntohs(*(unsigned short *) ptr);
 
+            if (dnsRr[i].type == DNS_MX) {
+                dnsRr[i].preference = ntohs(*(unsigned short *) ptr);
+                ptr+=2;
+            }
             ptr += 2;
             if (dnsRr[i].type == DNS_CNAME) {
                 bzero(cname, sizeof(cname));
@@ -442,13 +623,12 @@ void parse_server_response(){
                 }
                 ptr += dnsRr[i].data_len;
             } else if (dnsRr[i].type == DNS_MX) {
-                ptr += 2;
                 bzero(cname, sizeof(cname));
                 len = 0;
                 dns_parse_name(net_server_response, ptr, cname, &len);
                 dnsRr[i].MXName = (char *) calloc(strlen(cname) + 1, 1);
                 memcpy(dnsRr[i].MXName, cname, strlen(cname));
-                ptr += dnsRr[i].data_len - 2;
+                ptr += dnsRr[i].data_len;
             }
         }
         for(int i = 0; i < Num[j]; i++){
@@ -470,7 +650,7 @@ void parse_server_response(){
         }
 
         for (int i = 0; i < Num[j]; ++i) {
-            if (strcmp(client_wanted_domain, dnsRr[i].SearchName) == 0 && dnsRr[i].type == ntohs(dnsQuery.qtype)) {
+            if (strcmp(client_wanted_domain, dnsRr[i].SearchName) == 0 ) {
                 dnsCache[local_cache_num].SearchName = dnsRr[i].SearchName;
                 dnsCache[local_cache_num].ttl = dnsRr[i].ttl;
                 time(&dnsCache[local_cache_num].updateTime);
@@ -482,6 +662,7 @@ void parse_server_response(){
                 dnsCache[local_cache_num].type = dnsRr[i].type;
                 switch (dnsRr[i].type) {
                     case DNS_MX:
+                        dnsCache[local_cache_num].preference = dnsRr[i].preference;
                         dnsCache[local_cache_num].MXName = dnsRr[i].MXName;
                         break;
                     case DNS_HOST:
@@ -521,6 +702,7 @@ void appendStructToCSV(const char* filename, struct DNS_RR* dnsRr) {
         fprintf(file, "%s\n", dnsRr->ip);
     } else if (dnsRr->type == 15) {
         fprintf(file, "MX,");
+        fprintf(file, "%d,", dnsRr->preference);
         fprintf(file, "%s\n", dnsRr->MXName);
     } else if(dnsRr->type == 12){
         fprintf(file, "PTR,");
@@ -537,7 +719,7 @@ void appendStructToCSV(const char* filename, struct DNS_RR* dnsRr) {
 
 void initSystem(){
     local_cache_num = 0;
-    next_server_ip = "10.211.55.13";
+    next_server_ip = "114.114.114.114";
     memset(net_server_return_domain, 0 ,sizeof (net_server_return_domain));
     net_server_return_domain[0] = '!';
 
@@ -600,7 +782,8 @@ void initSystem(){
             dnsCache[local_cache_num].type = 15;
 
             token = strtok(NULL, ",");
-
+            dnsCache[local_cache_num].preference = atoi(token);
+            token = strtok(NULL, ",");
             dnsCache[local_cache_num].MXName = (char *) calloc(strlen(token) + 1, 1);
             memcpy(dnsCache[local_cache_num].MXName, token, strlen(token));
             // 在此处添加处理 MX 类型的代码
@@ -610,8 +793,8 @@ void initSystem(){
 
             token = strtok(NULL, ",");
 
-            dnsCache[local_cache_num].MXName = (char *) calloc(strlen(token) + 1, 1);
-            memcpy(dnsCache[local_cache_num].MXName, token, strlen(token));
+            dnsCache[local_cache_num].PTRName = (char *) calloc(strlen(token)+1 , 1);
+            memcpy(dnsCache[local_cache_num].PTRName, token, strlen(token));
             //printf("PTRName: %s\n\n", dnsCache[local_cache_num].PTRName);
         } else{
             printf("error\n\n");
