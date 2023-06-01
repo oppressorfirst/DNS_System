@@ -684,6 +684,7 @@ void parse_server_response(){
 
     }
 
+
 }
 
 void appendStructToCSV(const char* filename, struct DNS_RR* dnsRr) {
@@ -719,7 +720,7 @@ void appendStructToCSV(const char* filename, struct DNS_RR* dnsRr) {
 
 void initSystem(){
     local_cache_num = 0;
-    next_server_ip = "114.114.114.114";
+    next_server_ip = "10.211.55.13";
     memset(net_server_return_domain, 0 ,sizeof (net_server_return_domain));
     net_server_return_domain[0] = '!';
 
@@ -811,7 +812,9 @@ void sendto_AuthToClient(){
 
 int main() {
 
-
+    clock_t start_time = clock();
+    clock_t process_time;
+    clock_t end_time;
     initUdpSock();
     while (1) {
 
@@ -825,20 +828,32 @@ int main() {
                 isCached = i;
             }
         }
-
+        int times = 0;
         if (isCached == 0) {
             while (strcmp(net_server_return_domain, client_wanted_domain) != 0) {
+                process_time = clock();
                 initTcpSock();
                 ask_net_server();
                 receive_net_server();
+                end_time = clock();
+                double execution_time = (double)(end_time - process_time) / CLOCKS_PER_SEC;
+                printf("查询到第%d台服务器了，它的ip是%s，响应时间是：%f秒\n",times+1,next_server_ip, execution_time);
                 parse_server_response();
+                times++;
             }
             sendto_AuthToClient();
+            double execution_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
+            printf("总响应时间是：%f秒\n",execution_time);
             memset(net_server_return_domain, 0, sizeof(net_server_return_domain));
             net_server_return_domain[0] = '!';
             // forward_dns_query(client_query_len, client_query_packet);
         } else{
+            printf("本地有缓存\n");
+            end_time = clock();
             sendto_client(isCached, dnsQuery.qtype);
+            double execution_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
+            printf("总响应时间是：%f秒\n", execution_time);
+
         }
         printf("完成了一次查询\n");
     }

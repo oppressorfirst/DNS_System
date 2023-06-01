@@ -273,10 +273,10 @@ void dns_parse_response(char* buffer) {
 int main(int agrs,char *argv[]){
 
     printf("please input the domain you want to search:\n");
-    //char domain[512] = {'w','w','w','.','y','r','z','.','c','o','m'};
+    char domain[512] = {'w','w','w','.','y','r','z','.','c','o','m'};
     //scanf("%s",domain);
-    char domain[512] = {'1','.','1','.','1','.','1'};
-    char temp[10]= {'P','T','R'};
+    //char domain[512] = {'1','.','1','.','1','.','1'};
+    char temp[10];//= {'P','T','R'};
     // 获取用户输入的类型
     printf("请输入记录类型（CNAME、A、MX、PTR）：");
     //scanf("%s", temp);
@@ -304,7 +304,7 @@ int main(int agrs,char *argv[]){
         printf("无效的类型\n");
     }
 
-    //type = 5;
+    type = 1;
 
     //1.创建UDP socket
     //网络层ipv4, 传输层用udp
