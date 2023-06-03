@@ -12,7 +12,7 @@
 #include "DNS.h"
 
 #define DNS_SERVER_PORT     53
-#define DNS_SERVER_IP       "127.0.0.1"
+#define DNS_SERVER_IP       "10.211.55.14"
 #define DNS_HOST			0x01
 #define DNS_CNAME			0x05
 #define DNS_SOA             0x06
@@ -301,78 +301,76 @@ void dns_parse_response(char* buffer) {
 
 }
 
-int main(int agrs,char *argv[]){
+int main(int agrs,char *argv[]) {
+    while (1) {
+        printf("please input the domain you want to search:\n");
+        char domain[512] = {'w', 'w', 'w', '.', 'b', 'a', 'i', 'd', 'u', '.', 'c', 'o', 'm'};
+        //char domain[512] = {'s','i','n','a','.','c','o','m','.','c','n'};
+        //char domain[512] = {'w','w','w','.','y','r','z','.','c','o','m'};
+        //scanf("%s",domain);
+        //char domain[512] = {'1','.','1','.','1','.','1'};
+        char temp[10];//= {'P','T','R'};
+        // 获取用户输入的类型
+        printf("请输入记录类型（CNAME、A、MX、PTR）：");
+        //scanf("%s", temp);
+        int type;
+        // 根据类型输出相应的值
+        if (strcmp(temp, "CNAME") == 0) {
+            type = 5;
+            printf("CNAME\n");
+            // 在此处添加处理 CNAME 类型的代码
+        } else if (strcmp(temp, "A") == 0) {
+            type = 1;
+            printf("A\n");
+            // 在此处添加处理 A 类型的代码
+        } else if (strcmp(temp, "MX") == 0) {
+            type = 15;
+            printf("MX\n");
+            // 在此处添加处理 MX 类型的代码
+        } else if (strcmp(temp, "PTR") == 0) {
+            type = 12;
+            printf("PTR\n");
+            strcat(domain, ".in-addr.arpa");
+        } else {
+            printf("无效的类型\n");
+        }
 
-    printf("please input the domain you want to search:\n");
-    char domain[512] = {'w','w','w','.','b','a','i','d','u','.','c','o','m'};
-    //char domain[512] = {'s','i','n','a','.','c','o','m','.','c','n'};
-    //char domain[512] = {'w','w','w','.','y','r','z','.','c','o','m'};
-    //scanf("%s",domain);
-    //char domain[512] = {'1','.','1','.','1','.','1'};
-    char temp[10];//= {'P','T','R'};
-    // 获取用户输入的类型
-    printf("请输入记录类型（CNAME、A、MX、PTR）：");
-    //scanf("%s", temp);
-    int type;
-    // 根据类型输出相应的值
-    if (strcmp(temp, "CNAME") == 0) {
-        type = 5;
-        printf("CNAME\n");
-        // 在此处添加处理 CNAME 类型的代码
-    } else if (strcmp(temp, "A") == 0) {
         type = 1;
-        printf("A\n");
-        // 在此处添加处理 A 类型的代码
-    } else if (strcmp(temp, "MX") == 0) {
-        type = 15;
-        printf("MX\n");
-        // 在此处添加处理 MX 类型的代码
-    } else if(strcmp(temp, "PTR") == 0)
-    {
-        type = 12;
-        printf("PTR\n");
-        strcat(domain, ".in-addr.arpa");
+
+        //1.创建UDP socket
+        //网络层ipv4, 传输层用udp
+        int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+        if (sockfd < 0) {
+            return -1;
+        }
+
+        //2.socket结构体填充数据
+        struct sockaddr_in servaddr;
+        bzero(&servaddr, sizeof(servaddr)); //将结构体数组清空
+        servaddr.sin_family = AF_INET;  //选择ipv4通信
+        servaddr.sin_port = htons(DNS_SERVER_PORT);  //选择服务器的53端口
+        inet_pton(AF_INET, DNS_SERVER_IP, &servaddr.sin_addr.s_addr);//将目标地址的ip转化成网络字节序的二进制形式
+
+        struct DNS_Header header = {0}; //清零dns头部
+        dns_create_header(&header); //具体构建过程
+
+        struct DNS_Query question = {0}; //清零dns问题部分
+        dns_create_question(&question, domain, type);
+
+        char request[1024] = {0};
+        int len = dns_build_request(&header, &question, request, 1024);
+
+        //4.通过sockfd发送DNS请求报文
+        sendto(sockfd, request, len, 0, (struct sockaddr *) &servaddr, sizeof(struct sockaddr));
+        //5.接受DNS服务器的响应报文
+        //addr和addr_len是输出参数
+        char response[1024] = {0};
+        struct sockaddr_in addr;
+        size_t addr_len = sizeof(struct sockaddr_in);
+        //5.接受DNS服务器的响应报文
+        //addr和addr_len是输出参数
+
+        int n = recvfrom(sockfd, response, sizeof(response), 0, (struct sockaddr *) &addr, (socklen_t *) &addr_len);
+        dns_parse_response(response);
     }
-    else {
-        printf("无效的类型\n");
-    }
-
-    type = 5;
-
-    //1.创建UDP socket
-    //网络层ipv4, 传输层用udp
-    int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-    if(sockfd < 0)
-    {
-        return -1;
-    }
-
-    //2.socket结构体填充数据
-    struct sockaddr_in servaddr;
-    bzero(&servaddr, sizeof(servaddr)); //将结构体数组清空
-    servaddr.sin_family = AF_INET;  //选择ipv4通信
-    servaddr.sin_port = htons(DNS_SERVER_PORT);  //选择服务器的53端口
-    inet_pton(AF_INET, DNS_SERVER_IP, &servaddr.sin_addr.s_addr);//将目标地址的ip转化成网络字节序的二进制形式
-
-    struct DNS_Header header = {0}; //清零dns头部
-    dns_create_header(&header); //具体构建过程
-
-    struct DNS_Query question = {0}; //清零dns问题部分
-    dns_create_question(&question, domain, type);
-
-    char request[1024] = {0};
-    int len = dns_build_request(&header, &question, request, 1024);
-
-    //4.通过sockfd发送DNS请求报文
-    sendto(sockfd, request, len, 0, (struct sockaddr *)&servaddr, sizeof(struct sockaddr));
-    //5.接受DNS服务器的响应报文
-    //addr和addr_len是输出参数
-    char response[1024] = {0};
-    struct sockaddr_in addr;
-    size_t addr_len = sizeof(struct sockaddr_in);
-    //5.接受DNS服务器的响应报文
-    //addr和addr_len是输出参数
-
-    int n = recvfrom(sockfd, response, sizeof(response), 0, (struct sockaddr *)&addr, (socklen_t *)&addr_len);
-    dns_parse_response(response);
 }
