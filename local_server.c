@@ -27,7 +27,7 @@ int client_query_len;
 char client_query_packet[1024];
 char client_wanted_domain[128];
 char net_server_return_domain[128];
-char *next_server_ip;
+char *next_server_ip = "10.211.55.13";
 int local_cache_num;
 int existCache;
 struct DNS_RR dnsCache[100];
@@ -462,16 +462,14 @@ void sendto_client(int num, int type){        //实现
     offset = createRRResponse(offset,response,temp);
     if(dnsCache[num].type == 15) {
         for (int i = 0; i < local_cache_num; ++i) {
-            if (strcmp(dnsCache[num].MXName, dnsCache[i].SearchName) == 0 && dnsCache[i].type==1) {
+            if (strcmp(dnsCache[num].MXName, dnsCache[i].SearchName) == 0) {
                 MXpos = i;
                 break;
             }
         }
         printf("%d\n",MXpos);
-        if (MXpos != -1) {
-            buildRR(&MX_NAME, MXpos, response, offset);
-            offset = createRRResponse(offset, response, MX_NAME);
-        }
+        buildRR(&MX_NAME, MXpos, response, offset);
+        offset = createRRResponse(offset,response,MX_NAME);
     }
 
 
@@ -579,7 +577,9 @@ void parse_server_response(){
     struct DNS_RR dnsRr[allRRNum];
     memset(net_server_return_domain, 0, sizeof(net_server_return_domain));
 
-        for (int i = 0; i < allRRNum; i++) {
+    for (int j = 0; j < 3; j++) {
+        //解析汇报区域
+        for (int i = 0; i < Num[j]; i++) {
 
             len = 0;
             if(!times) {
@@ -629,16 +629,9 @@ void parse_server_response(){
                 dnsRr[i].MXName = (char *) calloc(strlen(cname) + 1, 1);
                 memcpy(dnsRr[i].MXName, cname, strlen(cname));
                 ptr += dnsRr[i].data_len;
-            }   else if (dnsRr[i].type == DNS_PTR) {
-                bzero(cname, sizeof(cname));
-                len = 0;
-                dns_parse_name(net_server_response, ptr, cname, &len);
-                dnsRr[i].PTRName = (char *) calloc(strlen(cname) + 1, 1);
-                memcpy(dnsRr[i].PTRName, cname, strlen(cname));
-                ptr += dnsRr[i].data_len;
             }
         }
-        for(int i = 0; i < allRRNum; i++){
+        for(int i = 0; i < Num[j]; i++){
             printf("type: %d, ",dnsRr[i].type);
             printf("ttl: %d, ", dnsRr[i].ttl);
             printf("%d, ",dnsRr[i].data_len);
@@ -656,7 +649,7 @@ void parse_server_response(){
             printf("00000000000000000000000000\n");
         }
 
-        for (int i = 0; i < allRRNum; ++i) {
+        for (int i = 0; i < Num[j]; ++i) {
             if (strcmp(client_wanted_domain, dnsRr[i].SearchName) == 0 ) {
                 dnsCache[local_cache_num].SearchName = dnsRr[i].SearchName;
                 dnsCache[local_cache_num].ttl = dnsRr[i].ttl;
@@ -692,6 +685,8 @@ void parse_server_response(){
     }
 
 
+}
+
 void appendStructToCSV(const char* filename, struct DNS_RR* dnsRr) {
     FILE* file = fopen(filename, "a");
     if (file == NULL) {
@@ -725,7 +720,7 @@ void appendStructToCSV(const char* filename, struct DNS_RR* dnsRr) {
 
 void initSystem(){
     local_cache_num = 0;
-    next_server_ip = "114.114.114.114";
+    next_server_ip = "10.211.55.13";
     memset(net_server_return_domain, 0 ,sizeof (net_server_return_domain));
     net_server_return_domain[0] = '!';
 

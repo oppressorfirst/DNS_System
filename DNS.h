@@ -1,7 +1,7 @@
 //
 // Created by jialun zhang on 19/5/2023.
 //
-
+#include "time.h"
 #ifndef DNS_SYSTEM_DNS_H
 #define DNS_SYSTEM_DNS_H
 
