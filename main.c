@@ -186,9 +186,8 @@ void dns_parse_response(char* buffer) {
 
     struct DNS_RR dnsRr[allRRNum];
     memset(dnsRr, 0, allRRNum * sizeof(struct DNS_RR));
-    for (int j = 0; j < 3; j++) {
-    //解析汇报区域
-    for (int i = 0; i < Num[j]; i++) {
+
+    for (int i = 0; i < allRRNum; i++) {
 
         bzero(aname, sizeof(aname));
         len = 0;
@@ -216,10 +215,7 @@ void dns_parse_response(char* buffer) {
             ptr+=2;
         }
 
-        if (dnsRr[i].type == DNS_SOA) {
-            //不需要解析这个类型
-            ptr += dnsRr[i].data_len;
-        } else if (dnsRr[i].type == DNS_CNAME) {
+         if (dnsRr[i].type == DNS_CNAME) {
             bzero(cname, sizeof(cname));
             len = 0;
             dns_parse_name(buffer, ptr, cname, &len);
@@ -251,28 +247,65 @@ void dns_parse_response(char* buffer) {
             ptr += dnsRr[i].data_len;
         }
     }
-        for(int i = 0; i < Num[j]; i++){
+    printf("Answer:\n");
+        for(int i = 0; i < answersNum; i++){
             printf("%s, ",dnsRr[i].SearchName);
             printf("type: %d, ",dnsRr[i].type);
             printf("ttl: %d, ", dnsRr[i].ttl);
             printf("%d, ",dnsRr[i].data_len);
             if(dnsRr[i].CName != NULL)
-                printf("%s, ",dnsRr[i].CName);
+                printf("CNAME: %s, ",dnsRr[i].CName);
             if(dnsRr[i].ip != NULL)
-                printf("%s, ", dnsRr[i].ip);
+                printf("ip: %s, ", dnsRr[i].ip);
             if(dnsRr[i].MXName != NULL)
-                printf("%s, ",dnsRr[i].MXName);
+                printf("MX: %s, ",dnsRr[i].MXName);
             if(dnsRr[i].PTRName != NULL)
-                printf("%s, ",dnsRr[i].PTRName);
+                printf("PTR: %s, ",dnsRr[i].PTRName);
             printf("\n");
         }
-        printf("00000000000000000000000000\n");
-}
+
+    printf("Authority Answer:\n");
+    for(int i = answersNum; i < answersNum+authoritiesNum; i++){
+        printf("%s, ",dnsRr[i].SearchName);
+        printf("type: %d, ",dnsRr[i].type);
+        printf("ttl: %d, ", dnsRr[i].ttl);
+        printf("%d, ",dnsRr[i].data_len);
+        if(dnsRr[i].CName != NULL)
+            printf("CNAME: %s, ",dnsRr[i].CName);
+        if(dnsRr[i].ip != NULL)
+            printf("ip: %s, ", dnsRr[i].ip);
+        if(dnsRr[i].MXName != NULL)
+            printf("MX: %s, ",dnsRr[i].MXName);
+        if(dnsRr[i].PTRName != NULL)
+            printf("PTR: %s, ",dnsRr[i].PTRName);
+        printf("\n");
+    }
+
+    printf("Additional Answer:\n");
+    for(int i = answersNum+authoritiesNum; i < allRRNum; i++){
+        printf("%s, ",dnsRr[i].SearchName);
+        printf("type: %d, ",dnsRr[i].type);
+        printf("ttl: %d, ", dnsRr[i].ttl);
+        printf("%d, ",dnsRr[i].data_len);
+        if(dnsRr[i].CName != NULL)
+            printf("CNAME: %s, ",dnsRr[i].CName);
+        if(dnsRr[i].ip != NULL)
+            printf("ip: %s, ", dnsRr[i].ip);
+        if(dnsRr[i].MXName != NULL)
+            printf("MX: %s, ",dnsRr[i].MXName);
+        if(dnsRr[i].PTRName != NULL)
+            printf("PTR: %s, ",dnsRr[i].PTRName);
+        printf("\n");
+    }
+
+
 }
 
 int main(int agrs,char *argv[]){
 
     printf("please input the domain you want to search:\n");
+    //char domain[512] = {'w','w','w','.','b','a','i','d','u','.','c','o','m'};
+    //char domain[512] = {'s','i','n','a','.','c','o','m','.','c','n'};
     char domain[512] = {'w','w','w','.','y','r','z','.','c','o','m'};
     //scanf("%s",domain);
     //char domain[512] = {'1','.','1','.','1','.','1'};
@@ -304,7 +337,7 @@ int main(int agrs,char *argv[]){
         printf("无效的类型\n");
     }
 
-    type = 1;
+    type = 15;
 
     //1.创建UDP socket
     //网络层ipv4, 传输层用udp

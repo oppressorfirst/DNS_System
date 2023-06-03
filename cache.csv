@@ -3,4 +3,9 @@ cn,172800,IN,A,114.114.114.114
 us,172800,IN,A,114.114.114.114
 org,172800,IN,A,114.114.114.114
 bupt.edu.cn,86400,IN,A,1.1.1.1
-www.yrz.com,3336,IN,A,3.64.163.50
+www.yrz.com,3042,IN,A,3.64.163.50
+www.yrz.com,3042,IN,CNAME,www.baidu.com
+www.yrz.com,3042,IN,MX,10,www.baidu.com
+www.baidu.com,45,IN,CNAME,www.a.shifen.com
+www.baidu.com,190,IN,A,39.156.66.14
+www.baidu.com,190,IN,A,39.156.66.18
