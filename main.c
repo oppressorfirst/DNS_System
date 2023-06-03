@@ -12,7 +12,7 @@
 #include "DNS.h"
 
 #define DNS_SERVER_PORT     53
-#define DNS_SERVER_IP       "10.211.55.18"
+#define DNS_SERVER_IP       "127.0.0.1"
 #define DNS_HOST			0x01
 #define DNS_CNAME			0x05
 #define DNS_SOA             0x06
