@@ -579,9 +579,7 @@ void parse_server_response(){
     struct DNS_RR dnsRr[allRRNum];
     memset(net_server_return_domain, 0, sizeof(net_server_return_domain));
 
-    for (int j = 0; j < 3; j++) {
-        //解析汇报区域
-        for (int i = 0; i < Num[j]; i++) {
+        for (int i = 0; i < allRRNum; i++) {
 
             len = 0;
             if(!times) {
@@ -631,9 +629,16 @@ void parse_server_response(){
                 dnsRr[i].MXName = (char *) calloc(strlen(cname) + 1, 1);
                 memcpy(dnsRr[i].MXName, cname, strlen(cname));
                 ptr += dnsRr[i].data_len;
+            }   else if (dnsRr[i].type == DNS_PTR) {
+                bzero(cname, sizeof(cname));
+                len = 0;
+                dns_parse_name(net_server_response, ptr, cname, &len);
+                dnsRr[i].PTRName = (char *) calloc(strlen(cname) + 1, 1);
+                memcpy(dnsRr[i].PTRName, cname, strlen(cname));
+                ptr += dnsRr[i].data_len;
             }
         }
-        for(int i = 0; i < Num[j]; i++){
+        for(int i = 0; i < allRRNum; i++){
             printf("type: %d, ",dnsRr[i].type);
             printf("ttl: %d, ", dnsRr[i].ttl);
             printf("%d, ",dnsRr[i].data_len);
@@ -651,7 +656,7 @@ void parse_server_response(){
             printf("00000000000000000000000000\n");
         }
 
-        for (int i = 0; i < Num[j]; ++i) {
+        for (int i = 0; i < allRRNum; ++i) {
             if (strcmp(client_wanted_domain, dnsRr[i].SearchName) == 0 ) {
                 dnsCache[local_cache_num].SearchName = dnsRr[i].SearchName;
                 dnsCache[local_cache_num].ttl = dnsRr[i].ttl;
@@ -686,8 +691,6 @@ void parse_server_response(){
 
     }
 
-
-}
 
 void appendStructToCSV(const char* filename, struct DNS_RR* dnsRr) {
     FILE* file = fopen(filename, "a");
