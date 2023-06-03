@@ -165,7 +165,7 @@ void dns_create_question(struct DNS_Query *question, const char *hostname)
 
 
     //内存空间长度：hostname长度 + 结尾\0 再多给一个空间
-    question->name = malloc(strlen(hostname) + 2);
+    question->name = malloc(strlen(hostname) + 2 +100);
     if(question->name == NULL)
     {
         printf("内存分配出错了");
@@ -277,7 +277,7 @@ int createRRResponse(int offset, char *request, struct DNS_RR dnsRr){
 void buildRR(struct DNS_RR *dnsRr, int num, char* response,int responseLen){
 
     printf("builedRR     %s\n",dnsCache[num].SearchName);
-    dnsRr->SearchName = malloc(dnsCache[num].SearchNameLen + 2);
+    dnsRr->SearchName = malloc(dnsCache[num].SearchNameLen + 2 +100);
     dnsRr->SearchNameLen = strlen(dnsCache[num].SearchName) + 2;
     const char delim[2] = ".";
     char *qname =dnsRr->SearchName; //用于填充内容用的指针
@@ -324,9 +324,11 @@ void buildRR(struct DNS_RR *dnsRr, int num, char* response,int responseLen){
     printf("%d\n", position);
     if (position != 0) {
         dnsRr->SearchNameLen = 2;
-        dnsRr->SearchName = malloc( 2);
+        free(dnsRr->SearchName);
+        dnsRr->SearchName = malloc( 3 +100);
         dnsRr->SearchName[0]= 0xc0;
         dnsRr->SearchName[1]= position;
+        dnsRr->SearchName[2] = '\0';
     }
 
     dnsRr->class = htons(1);
@@ -342,7 +344,7 @@ void buildRR(struct DNS_RR *dnsRr, int num, char* response,int responseLen){
         printf("%s\n",dnsCache[num].ip);
         sscanf(dnsCache[num].ip, "%hhu.%hhu.%hhu.%hhu", &ip_parts[0], &ip_parts[1], &ip_parts[2], &ip_parts[3]);
         dns_address = (ip_parts[0] << 24) | (ip_parts[1] << 16) | (ip_parts[2] << 8) | ip_parts[3];
-        dnsRr->ip = malloc(sizeof (unsigned char *)&dns_address);
+        dnsRr->ip = malloc(sizeof (unsigned char *)&dns_address +100);
         uint32_t network_order = htonl(dns_address);
         memcpy(dnsRr->ip, &network_order, sizeof(network_order));
         printHex(dnsRr->ip,4);
@@ -353,7 +355,7 @@ void buildRR(struct DNS_RR *dnsRr, int num, char* response,int responseLen){
 
         dnsRr->data_len = strlen (dnsCache[num].CName)+2;
         const char delim[2] = ".";
-        dnsRr->CName = malloc(sizeof (dnsRr->data_len));
+        dnsRr->CName = malloc(sizeof (dnsRr->data_len) +100);
         char *qname = dnsRr->CName; //用于填充内容用的指针
 
         //strdup先开辟大小与hostname同的内存，然后将hostname的字符拷贝到开辟的内存上
@@ -382,7 +384,7 @@ void buildRR(struct DNS_RR *dnsRr, int num, char* response,int responseLen){
         //MX
         dnsRr->preference = htons(dnsCache[num].preference);
         dnsRr->data_len = strlen (dnsCache[num].MXName)+4;
-        dnsRr->MXName = malloc(sizeof (dnsRr->data_len));
+        dnsRr->MXName = malloc(sizeof (dnsRr->data_len) +100);
         const char delim[2] = ".";
         char *qname = dnsRr->MXName; //用于填充内容用的指针
 
@@ -409,7 +411,7 @@ void buildRR(struct DNS_RR *dnsRr, int num, char* response,int responseLen){
         //PTR
         printf("%s\n",dnsCache[num].PTRName);
         dnsRr->data_len = strlen (dnsCache[num].PTRName) + 2;
-        dnsRr->PTRName = malloc(sizeof (dnsRr->data_len));
+        dnsRr->PTRName = malloc(sizeof (dnsRr->data_len) +100);
         memset(dnsRr->PTRName,0,sizeof (dnsRr->PTRName));
         const char delim[2] = ".";
         char *qname = dnsRr->PTRName; //用于填充内容用的指针
@@ -827,14 +829,14 @@ int main() {
         receive_client();
         get_client_wanted_domain();
         dns_create_question(&dnsQuery, client_wanted_domain);
-        int isCached = 0;
+        int isCached = -1;
         for (int i = 0; i < local_cache_num; ++i) {
             if (strcmp(dnsCache[i].SearchName, client_wanted_domain) == 0 && dnsCache[i].type == ntohs(dnsQuery.qtype)) {
                 isCached = i;
             }
         }
         int times = 0;
-        if (isCached == 0) {
+        if (isCached == -1) {
             while (strcmp(net_server_return_domain, client_wanted_domain) != 0) {
                 process_time = clock();
                 initTcpSock();
