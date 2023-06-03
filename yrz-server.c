@@ -1,3 +1,6 @@
+//
+// Created by 杨锐智 on 2023/6/2.
+//
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,50 +29,50 @@ void intToNetworkByteArray(int value, uint8_t* array) {
 
 void dns_create_header(){
     //dnsheader的id在解析中已经记录了。
-    dnsHeader.flags = htons(0x8000);
+    dnsHeader.flags = htons(0x8180);
     dnsHeader.questionsNum = htons(1);    //询问报文的问题一般只有一个
     dnsHeader.answerNum = htons(0);
     dnsHeader.authorityNum = htons(1);
     dnsHeader.additionalNum = htons(0);
 }
 
-void dns_create_reply(char* ltdName,char* response,int responseLen){
+void dns_create_reply(char* thirdName,char* response,int responseLen){
     struct DNS_RR *reply = &dnsRr;
 
     memset(reply, 0, sizeof(struct DNS_RR));
-    int ltdNameLen = strlen(ltdName);
+    int thirdNameLen = strlen(thirdName);
     int position=0;
     for (int i = 0; i < responseLen; ++i) {
-        if(response[i]==ltdName[0]){
-            int temp = 1;
-            for (int j = 0; j < ltdNameLen; ++j) {
-                if(response[i+j]!=ltdName[j]) {
+        if(response[i]==thirdName[0]){//条件是搜索到yrz的y
+            int temp = 1;//标记一下temp=1
+            for (int j = 0; j < thirdNameLen; ++j) {
+                if(response[i+j]!=thirdName[j]) {//这一步是确认这个yrz的y是不是正好在response报文的qname部分
                     temp = 0;
                 }
             }
-            if(temp == 1){
-                position = i;
-                position--;
+            if(temp == 1){//确认是qname部分了
+                position = i;//给position输那一位
+                position--;//指在那个"."那里，在这里就是指向subName的长度
                 break;
             }
         }
     }
     //printf("%d",position);
-    if (position != 0) {
-        dnsRr.SearchName = malloc( 3);
+    if (position != 0) {//长度不等于 0
+        dnsRr.SearchName = malloc( 3);//c0指针 直接指回去了
         dnsRr.SearchNameLen = 2;
         dnsRr.SearchName[0]= 0xc0;
-        dnsRr.SearchName[1]= position;
+        dnsRr.SearchName[1]= position;//就像这个
     }
     else
     {
-        dnsRr.SearchName = malloc(ltdNameLen + 2);
-        dnsRr.SearchNameLen = ltdNameLen + 2;
+        dnsRr.SearchName = malloc(thirdNameLen + 2);
+        dnsRr.SearchNameLen = thirdNameLen + 2;
         const char delim[2] = ".";
         char *qname =dnsRr.SearchName; //用于填充内容用的指针
 
         //strdup先开辟大小与hostname同的内存，然后将hostname的字符拷贝到开辟的内存上
-        char *new_hostname = strdup(ltdName); //复制字符串，调用malloc
+        char *new_hostname = strdup(thirdName); //复制字符串，调用malloc
         //将按照delim分割出字符串数组，返回第一个字符串
         char *token = strtok(new_hostname, delim);
 
@@ -89,33 +92,18 @@ void dns_create_reply(char* ltdName,char* response,int responseLen){
         free(new_hostname);  // 释放通过 strdup 函数分配的内存空间
     }
     //printHex(dnsRr.SearchName,dnsRr.SearchNameLen);
-    dnsRr.type= htons(1);
-    dnsRr.class = htons(1);
+    dnsRr.type= htons(1);//A类型,这里我感觉要改
+    dnsRr.class = htons(1);//这个不用变的
     dnsRr.ttl = htonl(172800);
     dnsRr.data_len = htons(4);
     uint32_t dns_address = 0;
 
-    if(!strcmp(ltdName,"com")){
-        char ip[] = "10.211.55.19";
+    if(!strcmp(thirdName,"www")){
+        char ip[] = "114.114.114.114";
         unsigned char ip_parts[4];
         sscanf(ip, "%hhu.%hhu.%hhu.%hhu", &ip_parts[0], &ip_parts[1], &ip_parts[2], &ip_parts[3]);
         dns_address = (ip_parts[0] << 24) | (ip_parts[1] << 16) | (ip_parts[2] << 8) | ip_parts[3];
 
-    }else if(!strcmp(ltdName,"cn")){
-        char ip[] = "35.241.75.140";
-        unsigned char ip_parts[4];
-        sscanf(ip, "%hhu.%hhu.%hhu.%hhu", &ip_parts[0], &ip_parts[1], &ip_parts[2], &ip_parts[3]);
-        dns_address = (ip_parts[0] << 24) | (ip_parts[1] << 16) | (ip_parts[2] << 8) | ip_parts[3];
-    }else if(!strcmp(ltdName,"us")){
-        char ip[] = "35.220.181.128";
-        unsigned char ip_parts[4];
-        sscanf(ip, "%hhu.%hhu.%hhu.%hhu", &ip_parts[0], &ip_parts[1], &ip_parts[2], &ip_parts[3]);
-        dns_address = (ip_parts[0] << 24) | (ip_parts[1] << 16) | (ip_parts[2] << 8) | ip_parts[3];
-    }else if(!strcmp(ltdName,"org")){
-        char ip[] = "20.24.143.210";
-        unsigned char ip_parts[4];
-        sscanf(ip, "%hhu.%hhu.%hhu.%hhu", &ip_parts[0], &ip_parts[1], &ip_parts[2], &ip_parts[3]);
-        dns_address = (ip_parts[0] << 24) | (ip_parts[1] << 16) | (ip_parts[2] << 8) | ip_parts[3];
     }
     dnsRr.ip = (unsigned char *)&dns_address;
     uint32_t network_order = htonl(dns_address);
@@ -260,16 +248,39 @@ void handle_dns_query(int client_sock) {
     printHex(query_packet,query_length);
 
     dns_parse_query(query_packet);
-    dns_create_header();
-    dns_create_question(&dnsQuery,searchName);
+    dns_create_header();//头部直接抄就行
+    dns_create_question(&dnsQuery,searchName);//构建query部分
     char response[513] = {0};
     int  responseLen = 0;
-    responseLen = createResponse(responseLen,response);
+    responseLen = createResponse(responseLen,response);//这一步相当于把之前的header和 query合体
 
-    char *ltdName = strrchr(searchName, '.');
 
-    printf("最后一个顶级域名是：%s\n", ltdName + 1);
-    dns_create_reply(ltdName+1,response,responseLen);
+    char copyName[100];
+    strcpy(copyName, searchName); // Create a copy of searchName
+
+    char *ltdName = strrchr(copyName, '.');
+
+
+
+
+
+
+    if (ltdName != NULL){
+        *ltdName = '\0'; // 把最后一个"."置 0
+        char *subName = strrchr(copyName,'.');
+        if (subName != NULL){
+            *subName = '\0';
+            char *thirdLTD = strrchr(copyName,'.');
+            if (thirdLTD != '\0') {
+                printf("倒数第三个顶级域名是：%s\n", thirdLTD + 1);
+                dns_create_reply(thirdLTD+1,response,responseLen);
+            }
+        }
+    }else {
+        printf("无效的域名\n");
+    }
+
+
     responseLen = createResponse(responseLen,response);
     //printf("%d",responseLen);
 
@@ -310,6 +321,15 @@ int main() {
     server_addr.sin_addr.s_addr = INADDR_ANY;
     server_addr.sin_port = htons(ROOT_SERVER_PORT);
 
+
+
+    // 设置 SO_REUSEADDR 套接字选项
+    //int optval = 1;
+    //if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) < 0) {
+    //    perror("Setting socket option failed");
+    //    exit(1);
+    //}
+
     // 绑定套接字到根服务器地址
     if (bind(sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         perror("Binding failed");
@@ -322,7 +342,7 @@ int main() {
         exit(1);
     }
 
-    printf("Root DNS server started...\n");
+    printf("com DNS server started...\n");
 
     while (1) {
         int client_len = sizeof(client_addr);
