@@ -105,6 +105,8 @@ void initUdpSock(){
         exit(1);
     }
 
+
+
     // 设置本地服务端地址
     local_addr.sin_family = AF_INET;
     local_addr.sin_addr.s_addr = inet_addr("127.0.0.2");
@@ -133,6 +135,18 @@ void initTcpSock(){
         perror("Socket creation failed");
         exit(1);
     }
+
+    struct sockaddr_in tcp_local_addr;
+    tcp_local_addr.sin_family = AF_INET;
+    tcp_local_addr.sin_addr.s_addr = inet_addr("127.0.0.2");    //绑定成 tcp 连接想要固定的 localserver 地址
+    tcp_local_addr.sin_port = htons(0);
+
+    // 绑定套接字到本地服务端地址
+    if (bind(tcpSock, (struct sockaddr*)&tcp_local_addr, sizeof(tcp_local_addr)) < 0) {
+        perror("Binding failed");
+        exit(1);
+    }
+
     net_server_addr.sin_family = AF_INET;
     printf("这个是要进行查询的dns服务器%s\n\n",next_server_ip);
     net_server_addr.sin_addr.s_addr = inet_addr(next_server_ip);

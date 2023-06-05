@@ -478,6 +478,7 @@ void handle_dns_query(int client_sock) {
 
 
     char copyName[100] = ".";
+    printf("%s",copyName);
     char copyName1[100];
     strcpy(copyName1, searchName); // Create a copy of searchName
     strcat(copyName, copyName1);
@@ -497,7 +498,7 @@ void handle_dns_query(int client_sock) {
     }
 
     printf("diandeweizhi %d\n", point1Pos);
-    char lastString[100];  // 存储子字符串的数组
+    char lastString[100] = {0};  // 存储子字符串的数组
     int j =0;
     for (int i = point1Pos+1; i < copyNameLen; ++i) {
         lastString[j] = copyName[i];
@@ -516,50 +517,71 @@ void handle_dns_query(int client_sock) {
 //    responseLen = createResponse(responseLen,response);
 //    //printf("%d",responseLen);
 
+
+
     int isCached = -1;
-    if(strcmp(lastString,searchName)==0){//若一级域名就是想要查的，那就要什么有什么
+    //如果不是ptr类型的
+    if(dnsQuery.qtype != htons(12)){
+        if(strcmp(lastString,searchName)==0){//若一级域名就是想要查的，那就要什么有什么
+            //遍历一遍从文件读进来的结构体yrzDnsCache，然后找到与searchName匹配的那个序号
+            for (int i = 0; i < root_cache_num; ++i) {
+                if (strcmp(rootDnsCache[i].SearchName, lastString) == 0 && rootDnsCache[i].type == ntohs(dnsQuery.qtype)) {
+                    isCached = i;
+                    printf("看看序号对不对%d\n",i);
+                }
+            }
+        }else if(strcmp(lastString,searchName)!=0){//若一级域名不是想要查的，那直接返回下一级的 A类型，鸟都不鸟
+            for (int i = 0; i < root_cache_num; ++i) {
+                if (strcmp(rootDnsCache[i].SearchName, lastString)==0 && rootDnsCache[i].type == 1){
+                    isCached = i;
+                    printf("进这个循环%d\n",i);
+                }
+            }
+            //isCached = 0;
+        }
+        printf("需要匹配的序号：%d\n",isCached);
+    }else if(dnsQuery.qtype == htons(12)) {//如果是ptr类型的
         //遍历一遍从文件读进来的结构体yrzDnsCache，然后找到与searchName匹配的那个序号
         for (int i = 0; i < root_cache_num; ++i) {
-            if (strcmp(rootDnsCache[i].SearchName, lastString) == 0 && rootDnsCache[i].type == ntohs(dnsQuery.qtype)) {
+            if (strcmp(rootDnsCache[i].SearchName, "in-addr.arpa") == 0) {
                 isCached = i;
-                printf("看看序号对不对%d\n",i);
             }
         }
         printf("需要匹配的序号：%d\n",isCached);
-    }else if(strcmp(lastString,searchName)!=0){//若一级域名不是想要查的，那直接返回下一级的 A类型，鸟都不鸟
-        isCached = 0;
     }
-    printf("需要匹配的序号：%d\n",isCached);
 
 
 
-    //临时的temp和MX_NAME 分别用于MX和非MX
-    struct DNS_RR temp1, MX_NAME;
-    int MXpos = -1;
-    memset(&temp1, 0, sizeof(struct DNS_RR));
-    memset(&MX_NAME, 0, sizeof(struct DNS_RR));
-    buildRR(&temp1, isCached, response, responseLen);
-    responseLen = createRRResponse(responseLen,response,temp1);
-    //printf("%d",responseLen);
-
-    responseLen = createResponse(responseLen,response);
-    printf("%d",responseLen);
 
 
-    //上面只有返回MX 邮件服务器的域名，接下来的操作是判断 MX 邮件的 A 记录
-    if(rootDnsCache[isCached].type == 15) {
-        for (int i = 0; i < root_cache_num; ++i) {
-            if (strcmp(rootDnsCache[isCached].MXName, rootDnsCache[i].SearchName) == 0 && rootDnsCache[i].type==1) {
-                MXpos = i;
-                break;
+        //临时的temp和MX_NAME 分别用于MX和非MX
+        struct DNS_RR temp1, MX_NAME;
+        int MXpos = -1;
+        memset(&temp1, 0, sizeof(struct DNS_RR));
+        memset(&MX_NAME, 0, sizeof(struct DNS_RR));
+        buildRR(&temp1, isCached, response, responseLen);
+        responseLen = createRRResponse(responseLen,response,temp1);
+        //printf("%d",responseLen);
+
+        responseLen = createResponse(responseLen,response);
+        printf("%d",responseLen);
+
+
+        //上面只有返回MX 邮件服务器的域名，接下来的操作是判断 MX 邮件的 A 记录
+        if(rootDnsCache[isCached].type == 15) {
+            for (int i = 0; i < root_cache_num; ++i) {
+                if (strcmp(rootDnsCache[isCached].MXName, rootDnsCache[i].SearchName) == 0 && rootDnsCache[i].type==1) {
+                    MXpos = i;
+                    break;
+                }
+            }
+            printf("%d\n",MXpos);
+            if (MXpos != -1) {
+                buildRR(&MX_NAME, MXpos, response, responseLen);
+                responseLen = createRRResponse(responseLen, response, MX_NAME);
             }
         }
-        printf("%d\n",MXpos);
-        if (MXpos != -1) {
-            buildRR(&MX_NAME, MXpos, response, responseLen);
-            responseLen = createRRResponse(responseLen, response, MX_NAME);
-        }
-    }
+
 
 
 

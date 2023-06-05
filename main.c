@@ -301,20 +301,31 @@ void dns_parse_response(char* buffer) {
 
 }
 
-void reverseString(char *str) {
-    int start = 0;
-    int end = strlen(str) - 1;
+char* reverseString(char* ip) {
+    char* token;
+    char* stack[4];
+    int top = -1;
+    char* newIp = (char*) malloc(sizeof(char) * (16));  // 预留足够的空间
 
-    while (start < end) {
-        // 交换字符
-        char temp = str[start];
-        str[start] = str[end];
-        str[end] = temp;
-
-        // 移动指针
-        start++;
-        end--;
+    // 切割字符串并将其放入栈中
+    token = strtok(ip, ".");
+    while(token != NULL) {
+        stack[++top] = token;
+        token = strtok(NULL, ".");
     }
+
+    // 清空 newIp 字符串
+    newIp[0] = '\0';
+
+    // 从栈中取出并连接到 newIp 中
+    while(top >= 0) {
+        strcat(newIp, stack[top--]);
+        if(top >= 0) {
+            strcat(newIp, ".");
+        }
+    }
+
+    return newIp;
 }
 
 int main(int agrs,char *argv[]){
@@ -326,7 +337,10 @@ int main(int agrs,char *argv[]){
     //char domain[512] = {'w','w','w','.','y','r','z','.','c','o','m'};
     //char domain[512] = {'y','r','z','.','c','o','m'};
     //scanf("%s",domain);
-    char domain[512] = {'1','.','2','.','3','.','6'};
+    char domain[512] = {'1','2','.','0','.','0','.','5'};
+    //char temp[10]= {'C','N','A','M','E'};
+    //char temp[10]= {'A'};
+    //char temp[10]= {'M','X'};
     char temp[10]= {'P','T','R'};
     // 获取用户输入的类型
     printf("请输入记录类型（CNAME、A、MX、PTR）：");
@@ -349,14 +363,18 @@ int main(int agrs,char *argv[]){
     {
         type = 12;
         printf("PTR\n");
-        reverseString(domain);
+        char* reserveDomain = reverseString(domain);
+        memset(domain,0,sizeof(domain));
+        for (int i = 0; i < strlen(reserveDomain); ++i) {
+            domain[i] = reserveDomain[i];
+        }
         strcat(domain, ".in-addr.arpa");
     }
     else {
         printf("无效的类型\n");
     }
 
-    //type = 12;
+    //type = 5;
 
     //1.创建UDP socket
     //网络层ipv4, 传输层用udp

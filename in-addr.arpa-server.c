@@ -1,5 +1,5 @@
 //
-// Created by 杨锐智 on 2023/5/31.
+// Created by 杨锐智 on 2023/6/5.
 //
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,9 +22,33 @@ int com_cache_num;
 struct DNS_RR dnsRr;
 struct DNS_RR comDnsCache[100];
 
+void reverse_and_append(char* domain, char* result) {
+    char* parts[30];
+    int count = 0;
+    char* token;
+
+    // 使用'.'将域名分割，并将各部分存入parts数组中
+    token = strtok(domain, ".");
+    while(token != NULL) {
+        parts[count++] = token;
+        token = strtok(NULL, ".");
+    }
+
+    // 将 parts 数组中的元素反序添加到 result 中，并在各部分间添加'.'
+    for(int i = count - 1; i >= 0; --i) {
+        strcat(result, parts[i]);
+        if(i != 0) {
+            strcat(result, ".");
+        }
+    }
+
+    // 在结果的末尾添加".in-addr.arpa"
+    strcat(result, ".in-addr.arpa");
+}
+
 void initCsv() {
     com_cache_num = 0;
-    FILE *fp = fopen("com.csv", "r");
+    FILE *fp = fopen("in-addr.arpa.csv", "r");
     if (fp == NULL) {
         fprintf(stderr, "fopen() failed.\n");
         exit(EXIT_FAILURE);
@@ -38,13 +62,21 @@ void initCsv() {
         //www.yrz.com
         row[strcspn(row, "\n")] = '\0'; // 去除行末的换行符
         token = strtok(row, ","); //分解读进来的row，","为分隔符
-        comDnsCache[com_cache_num].SearchName = (char *) calloc(strlen(token)+1,1);
-        memcpy(comDnsCache[com_cache_num].SearchName,token, strlen(token));
+
+        //读文件的时候就开始处理ptr的ip翻转了
+        char ip[17] = {0};
+        memcpy(ip,token, strlen(token));
+
+
+
+
+        //这时候才开始分配给结构体，并给结构体中的SearchName赋值
 
         //3042（ttl）
         token = strtok(NULL,",");
-        comDnsCache[com_cache_num].ttl = atoi(token);
+        printf("%s\n",token);
 
+        comDnsCache[com_cache_num].ttl = atoi(token);
         time(&comDnsCache[com_cache_num].updateTime);
         comDnsCache[com_cache_num].updateTime += comDnsCache[com_cache_num].ttl;
 
@@ -56,39 +88,9 @@ void initCsv() {
         }
 
 
-        //四种类型
+        //就只看一种类型，也就是PTR
         token = strtok(NULL, ",");
-        if(strcmp(token,"CNAME") == 0){
-            comDnsCache[com_cache_num].type = 5;
-
-            token = strtok(NULL, ",");
-
-            //yrz.com(CNAME)
-            comDnsCache[com_cache_num].CName = (char *) calloc(strlen(token) + 1, 1);
-            memcpy(comDnsCache[com_cache_num].CName,token, strlen(token));
-
-        } else if (strcmp(token, "A") == 0){
-            comDnsCache[com_cache_num].type = 1;
-
-            token = strtok(NULL, ",");
-
-            //1.1.1.1(A)
-            comDnsCache[com_cache_num].ip = (char *) calloc(strlen(token) + 1, 1);
-            memcpy(comDnsCache[com_cache_num].ip,token, strlen(token));
-
-        } else if (strcmp(token, "MX") == 0) {
-            comDnsCache[com_cache_num].type = 15;
-
-            //10,preference优先级
-            token = strtok(NULL, ",");
-            comDnsCache[com_cache_num].preference = atoi(token);
-
-            //MX邮件服务器域名
-            token = strtok(NULL, ",");
-            comDnsCache[com_cache_num].MXName = (char *) calloc(strlen(token) + 1, 1);
-            memcpy(comDnsCache[com_cache_num].MXName,token, strlen(token));
-
-        } else if(strcmp(token, "PTR") == 0){
+        if(strcmp(token, "PTR") == 0){
             comDnsCache[com_cache_num].type = 12;
 
             //one.one.one.one
@@ -98,9 +100,14 @@ void initCsv() {
             memcpy(comDnsCache[com_cache_num].PTRName, token, strlen(token));
 
         }else{
-            printf("error\n\n");
+            printf("不是PTR类型！error！！\n\n");
         }
 
+        char ipReverse[30]="";
+        reverse_and_append(ip, ipReverse);
+        printf("wenjian:%s\n",ipReverse);
+        comDnsCache[com_cache_num].SearchName = (char *) calloc(strlen(ipReverse)+5,1);
+        memcpy(comDnsCache[com_cache_num].SearchName,ipReverse, strlen(ipReverse));
         com_cache_num++;
 
     }
@@ -192,78 +199,7 @@ void buildRR(struct DNS_RR *dnsRr, int num, char* response,int responseLen){
     dnsRr->ttl = htonl(comDnsCache[num].ttl);
 
 
-
-    if (comDnsCache[num].type  == 1){
-        dnsRr->data_len= 4;
-        unsigned char ip_parts[4];
-        uint32_t dns_address = 0;
-        printf("%s\n",comDnsCache[num].ip);
-        sscanf(comDnsCache[num].ip, "%hhu.%hhu.%hhu.%hhu", &ip_parts[0], &ip_parts[1], &ip_parts[2], &ip_parts[3]);
-        dns_address = (ip_parts[0] << 24) | (ip_parts[1] << 16) | (ip_parts[2] << 8) | ip_parts[3];
-        dnsRr->ip = malloc(sizeof (unsigned char *)&dns_address +100);
-        uint32_t network_order = htonl(dns_address);
-        memcpy(dnsRr->ip, &network_order, sizeof(network_order));
-        printHex(dnsRr->ip,4);
-
-    }else if(comDnsCache[num].type  == 5){
-        //CNAME
-        printf("CNAME   %s\n",comDnsCache[num].CName);
-
-        dnsRr->data_len = strlen (comDnsCache[num].CName)+2;
-        const char delim[2] = ".";
-        dnsRr->CName = malloc(sizeof (dnsRr->data_len) +100);
-        char *qname = dnsRr->CName; //用于填充内容用的指针
-
-        //strdup先开辟大小与hostname同的内存，然后将hostname的字符拷贝到开辟的内存上
-        char *new_hostname = strdup(comDnsCache[num].CName); //复制字符串，调用malloc
-        //将按照delim分割出字符串数组，返回第一个字符串
-        char *token = strtok(new_hostname, delim);
-
-
-        while (token != NULL)
-        {
-            size_t len = strlen(token);  // 获取当前子字符串的长度
-            *qname = len;  // 将长度存储到 qname 所指向的内存位置
-            qname++;  // 指针移动到下一个位置
-
-            strncpy(qname, token, len + 1);  // 复制当前子字符串到 qname 所指向的内存位置
-            qname += len;  // 指针移动到复制结束的位置
-
-            token = strtok(NULL, delim);  // 获取下一个子字符串
-        }
-
-        free(new_hostname);  // 释放通过 strdup 函数分配的内存空间
-
-
-        printf("000000000000000000000000\n");
-    } else if(comDnsCache[num].type  == 15){
-        //MX
-        dnsRr->preference = htons(comDnsCache[num].preference);
-        dnsRr->data_len = strlen (comDnsCache[num].MXName)+4;
-        dnsRr->MXName = malloc(sizeof (dnsRr->data_len) +100);
-        const char delim[2] = ".";
-        char *qname = dnsRr->MXName; //用于填充内容用的指针
-
-        //strdup先开辟大小与hostname同的内存，然后将hostname的字符拷贝到开辟的内存上
-        char *new_hostname = strdup(comDnsCache[num].MXName); //复制字符串，调用malloc
-        //将按照delim分割出字符串数组，返回第一个字符串
-        char *token = strtok(new_hostname, delim);
-
-        while (token != NULL)
-        {
-
-            size_t len = strlen(token);  // 获取当前子字符串的长度
-            *qname = len;  // 将长度存储到 qname 所指向的内存位置
-            qname++;  // 指针移动到下一个位置
-
-            strncpy(qname, token, len + 1);  // 复制当前子字符串到 qname 所指向的内存位置
-            qname += len;  // 指针移动到复制结束的位置
-
-            token = strtok(NULL, delim);  // 获取下一个子字符串
-        }
-
-        free(new_hostname);  // 释放通过 strdup 函数分配的内存空间
-    } else if(comDnsCache[num].type  == 12){
+    if(comDnsCache[num].type  == 12){
         //PTR
         printf("%s\n",comDnsCache[num].PTRName);
         dnsRr->data_len = strlen (comDnsCache[num].PTRName) + 2;
@@ -293,7 +229,7 @@ void buildRR(struct DNS_RR *dnsRr, int num, char* response,int responseLen){
         //free(new_hostname);  // 释放通过 strdup 函数分配的内存空间
         //dnsRr->PTRName[dnsRr->data_len-1] = 0;
     } else{
-        printf("error\n\n");
+        printf("不是 PTR！！！！error！！！\n\n");
     }
 
 
@@ -344,28 +280,14 @@ int createRRResponse(int offset, char *request, struct DNS_RR dnsRr){
     //   offset += 4;
 
 
-
-    if (dnsRr.type  == htons(1)){
-        //A
-        memcpy(request + offset, dnsRr.ip, 4);
-        offset += 4;
-    }else if(dnsRr.type  == htons(5)){
-        //CNAME
-        memcpy(request + offset, dnsRr.CName, dnsRr.data_len);
-        offset += dnsRr.data_len;
-    } else if(dnsRr.type  == htons(15)){
-        //MX
-        memcpy(request + offset, &dnsRr.preference, 2);
-        offset += 2;
-        memcpy(request + offset, dnsRr.MXName, dnsRr.data_len);
-        offset += dnsRr.data_len-2;
-    } else if(dnsRr.type  == htons(12)){
+    //再此验证是不是PTR
+    if(dnsRr.type  == htons(12)){
         //PTR
         printHex(dnsRr.PTRName,dnsRr.data_len);
         memcpy(request + offset, dnsRr.PTRName, dnsRr.data_len);
         offset += dnsRr.data_len;
     } else{
-        printf("error\n\n");
+        printf("不是PTR!回答部分构建错误！！！error！！！\n\n");
     }
 
 
@@ -477,80 +399,17 @@ void handle_dns_query(int client_sock) {
     int  responseLen = 0;
     responseLen = createResponse(responseLen,response);
     printf("888888999999%s\n",searchName);
-
-    int searchNameLen = strlen(searchName);
-
-    char copyName[100] = ".";
-    char copyName1[100];
-    strcpy(copyName1, searchName); // Create a copy of searchName
-    strcat(copyName, copyName1);
-
-    int copyNameLen = strlen(copyName);
-
-    int point2Pos = 0;
-    int pointNum  = 0;
-    for (int i = copyNameLen - 1; i > 0; --i) {
-
-        if (copyName[i] == '.') {
-            pointNum++;
-        }
-        if(pointNum == 2){
-            point2Pos = i;
-            break;
-        }
-    }
-
-    printf("diandeweizhi %d\n", point2Pos);
-    char subString[100] = {0};  // 存储子字符串的数组
-    int j =0;
-    for (int i = point2Pos+1; i < copyNameLen; ++i) {
-        subString[j] = copyName[i];
-        j++;
-    }
-
-    printf("%s\n",subString);
+    //searchName = 5.0.0.127.in-addr.arpa
 
 
-//    //获取yrz.com 所以要切割www.yrz.com的域名
-//    char copyName[100] = ".";
-//    char copyName1[100];
-//    strcpy(copyName1, searchName); // Create a copy of searchName
-//    strcat(copyName, copyName1);
-//    printf("看看第一个点后的东西%s",copyName);
-//
-//
-//    char* lastDotPtr = strrchr(copyName, '.');  // 找到最后一个 "."
-//    char* secondLastDotPtr = NULL;
-//    char subString[100];  // 存储子字符串的数组
-//    if (lastDotPtr != NULL) {
-//        secondLastDotPtr = strrchr(copyName, '.') - 1;  // 找到倒数第二个 "." 的前一个字符
-//    }
-//
-//    if (secondLastDotPtr != NULL && secondLastDotPtr >= copyName) {
-//        strcpy(subString, lastDotPtr + 1);  // 复制子字符串到 subString 数组
-//        printf("看看这个第二个点后的东西：%s\n", subString);  // 输出: yrz.com
-//    }
     int isCached = -1;
-    if(strcmp(subString,searchName)==0){//若二级域名就是想要查的，那就要什么有什么
-        //遍历一遍从文件读进来的结构体yrzDnsCache，然后找到与searchName匹配的那个序号
-        for (int i = 0; i < com_cache_num; ++i) {
-            if (strcmp(comDnsCache[i].SearchName, subString) == 0 && comDnsCache[i].type == ntohs(dnsQuery.qtype)) {
-                isCached = i;
-                printf("看看序号对不对%d\n",i);
-            }
+    //遍历一遍从文件读进来的结构体yrzDnsCache，然后找到与searchName匹配的那个序号
+    for (int i = 0; i < com_cache_num; ++i) {
+        if (strcmp(comDnsCache[i].SearchName, searchName) == 0) {
+            isCached = i;
         }
-    }else if(strcmp(subString,searchName)!=0){//若二级域名不是想要查的，那直接返回下一级的 A类型，鸟都不鸟
-        for (int i = 0; i < com_cache_num; ++i) {
-            if(strcmp(comDnsCache[i].SearchName, subString) == 0 && comDnsCache[i].type == 1){
-                isCached = i;
-                printf("进下面这个循环%d\n",i);
-            }
-        }
-
-
-
-//        isCached = 1;
     }
+
     printf("需要匹配的序号：%d\n",isCached);
 
 //    char copyName[100];
@@ -573,33 +432,16 @@ void handle_dns_query(int client_sock) {
 //        printf("无效的域名\n");
 //    }
 
-    //临时的temp和MX_NAME 分别用于MX和非MX
-    struct DNS_RR temp1, MX_NAME;
-    int MXpos = -1;
+    //临时的temp1
+    struct DNS_RR temp1;
     memset(&temp1, 0, sizeof(struct DNS_RR));
-    memset(&MX_NAME, 0, sizeof(struct DNS_RR));
     buildRR(&temp1, isCached, response, responseLen);
     responseLen = createRRResponse(responseLen,response,temp1);
     //printf("%d",responseLen);
 
-   responseLen = createResponse(responseLen,response);
+    responseLen = createResponse(responseLen,response);
     printf("%d",responseLen);
 
-
-    //上面只有返回MX 邮件服务器的域名，接下来的操作是判断 MX 邮件的 A 记录
-    if(comDnsCache[isCached].type == 15) {
-        for (int i = 0; i < com_cache_num; ++i) {
-            if (strcmp(comDnsCache[isCached].MXName, comDnsCache[i].SearchName) == 0 && comDnsCache[i].type==1) {
-                MXpos = i;
-                break;
-            }
-        }
-        printf("%d\n",MXpos);
-        if (MXpos != -1) {
-            buildRR(&MX_NAME, MXpos, response, responseLen);
-            responseLen = createRRResponse(responseLen, response, MX_NAME);
-        }
-    }
 
     uint8_t temp[2];
 
@@ -634,7 +476,7 @@ int main() {
 
     // 设置根服务器地址
     server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = inet_addr("127.0.0.4");
+    server_addr.sin_addr.s_addr = inet_addr("127.0.0.6");
     server_addr.sin_port = htons(COM_SERVER_PORT);
 
 
