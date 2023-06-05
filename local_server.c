@@ -36,11 +36,13 @@ struct DNS_Header dnsHeader;
 
 
 void  get_client_wanted_domain();
+void receive_net_server();
 void initSystem();
 void appendStructToCSV(const char* filename, struct DNS_RR* dnsRr);
 void parse_server_response();
 void receive_net_server();
 void initTcpSock();
+void reverseIP(char* domain, char* result);
 void ask_net_server();
 void intToNetworkByteArray(int value, uint8_t* array);
 void receive_client();
@@ -682,7 +684,12 @@ void parse_server_response(){
 
         for (int i = 0; i < allRRNum; ++i) {
             if (strcmp(client_wanted_domain, dnsRr[i].SearchName) == 0 ) {
-                dnsCache[local_cache_num].SearchName = dnsRr[i].SearchName;
+                printf("!!!!!!!!!!!!!!!!!!!!!!!????????????????%s\n", client_wanted_domain);
+                dnsCache[local_cache_num].SearchName = malloc(strlen(dnsRr[i].SearchName));
+                memcpy( dnsCache[local_cache_num].SearchName, dnsRr[i].SearchName, strlen(dnsRr[i].SearchName));
+
+
+
                 dnsCache[local_cache_num].ttl = dnsRr[i].ttl;
                 time(&dnsCache[local_cache_num].updateTime);
                 //printf("Current timestamp: %ld\n", dnsCache[local_cache_num].updateTime);
@@ -710,9 +717,6 @@ void parse_server_response(){
                 local_cache_num++;
             }
         }
-        printf("\n\n%d\nMMMMMMMMMMMMMMMMMMMMMMMMMMM\n",local_cache_num);
-
-
     }
 
 
@@ -722,7 +726,35 @@ void appendStructToCSV(const char* filename, struct DNS_RR* dnsRr) {
         printf("无法打开文件\n");
         return;
     }
-    fprintf(file, "%s,%d,IN,", dnsRr->SearchName, dnsRr->ttl);
+    printf("******************");
+
+    if (dnsRr->type == 12)
+    {
+        char ipPart[20] = {0};
+
+        printf("      ))))))%s",dnsRr->SearchName);
+        // 复制原始反向域名，然后定位到 "in" 的位置
+        char* inPosition = strstr(dnsRr->SearchName, ".in-addr.arpa");
+
+        //计算要复制的部分的长度
+        size_t length = inPosition - (char *)dnsRr->SearchName;
+
+        // 复制指定长度的部分
+        for (int j = 0; j < length; ++j) {
+            ipPart[j] = dnsCache[local_cache_num].SearchName[j];
+        }
+        ipPart[length] = '\0';
+        printf("      ))))))%s",ipPart);
+        char trueIP[20];
+
+        reverseIP(ipPart,trueIP);
+
+
+        fprintf(file, "%s,%d,IN,", trueIP, dnsRr->ttl);
+    }else{
+        fprintf(file, "%s,%d,IN,", dnsRr->SearchName, dnsRr->ttl);
+    }
+
 
     if (dnsRr->type == 5) {
         fprintf(file, "CNAME,");
@@ -746,6 +778,30 @@ void appendStructToCSV(const char* filename, struct DNS_RR* dnsRr) {
 
     fclose(file);
 }
+
+
+void reverseIP(char* domain, char* result) {
+    char* parts[30];
+    int count = 0;
+    char* token;
+
+    // 使用'.'将域名分割，并将各部分存入parts数组中
+    token = strtok(domain, ".");
+    while(token != NULL) {
+        parts[count++] = token;
+        token = strtok(NULL, ".");
+    }
+
+    // 将 parts 数组中的元素反序添加到 result 中，并在各部分间添加'.'
+    for(int i = count - 1; i >= 0; --i) {
+        strcat(result, parts[i]);
+        if(i != 0) {
+            strcat(result, ".");
+        }
+    }
+
+}
+
 
 void initSystem(){
     local_cache_num = 0;
@@ -823,8 +879,24 @@ void initSystem(){
 
             token = strtok(NULL, ",");
 
+            char writeDomain[50] = "";
+
+            reverseIP(dnsCache[local_cache_num].SearchName, writeDomain);
+
+            // 在结果的末尾添加".in-addr.arpa"
+
+
+            free(dnsCache[local_cache_num].SearchName);
+            dnsCache[local_cache_num].SearchName = malloc(strlen(writeDomain));
+            memcpy(dnsCache[local_cache_num].SearchName, writeDomain, strlen(writeDomain));
+            strcat(dnsCache[local_cache_num].SearchName, ".in-addr.arpa");
+
+
             dnsCache[local_cache_num].PTRName = (char *) calloc(strlen(token)+1 , 1);
             memcpy(dnsCache[local_cache_num].PTRName, token, strlen(token));
+
+            printf("dnsRR SearchName: %s????????????????\n", dnsCache[local_cache_num].SearchName);
+
             //printf("PTRName: %s\n\n", dnsCache[local_cache_num].PTRName);
         } else{
             printf("error\n\n");
@@ -834,6 +906,8 @@ void initSystem(){
     }
     existCache = local_cache_num;
     fclose(fp);
+
+    printf("LOCALCACHE NUM: %d????????????????\n", local_cache_num);
 }
 
 void sendto_AuthToClient(){
@@ -852,7 +926,9 @@ int main() {
         get_client_wanted_domain();
         dns_create_question(&dnsQuery, client_wanted_domain);
         int isCached = -1;
+
         for (int i = 0; i < local_cache_num; ++i) {
+            printf("dnsRR SearchName: %s????????????????\n", dnsCache[i].SearchName);
             if (strcmp(dnsCache[i].SearchName, client_wanted_domain) == 0 && dnsCache[i].type == ntohs(dnsQuery.qtype)) {
                 isCached = i;
             }
