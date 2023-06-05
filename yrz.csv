@@ -1,0 +1,5 @@
+www.yrz.com,3042,IN,A,3.64.163.50
+www.yrz.com,3042,IN,CNAME,yrz.com
+www.yrz.com,2800,IN,MX,10,mx.yrz.com
+mx.yrz.com,3942,IN,A,1.1.1.1
+1.1.1.1.in-addr.arpa,436,IN,PTR,one.one.one.one

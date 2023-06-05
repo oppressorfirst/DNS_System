@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" autoUpload="Always" serverName="local-server" remoteFilesAllowedToDisappearOnAutoupload="false" confirmBeforeUploading="false">
+  <component name="PublishConfigData" autoUpload="Always" serverName="server" remoteFilesAllowedToDisappearOnAutoupload="false" confirmBeforeUploading="false">
     <option name="confirmBeforeUploading" value="false" />
     <serverData>
       <paths name="com-server">
@@ -18,6 +18,20 @@
         </serverdata>
       </paths>
       <paths name="root-server">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/root/DNS_SYSTEM" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="server">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/home/parallels/Desktop" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="yrz-server">
         <serverdata>
           <mappings>
             <mapping deploy="/root/DNS_SYSTEM" local="$PROJECT_DIR$" web="/" />

@@ -23,6 +23,20 @@
           </advancedOptions>
         </fileTransfer>
       </webServer>
+      <webServer id="0afad732-8c7e-406e-a3a9-c8b697cd3b26" name="yrz-server">
+        <fileTransfer accessType="SFTP" host="10.211.55.20" port="22" sshConfigId="88b04622-6bb2-4df0-9989-15457749f751" sshConfig="root@10.211.55.20:22 password">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+      <webServer id="e7fb54de-ed3c-484b-975f-22332dbb09d9" name="server">
+        <fileTransfer accessType="SFTP" host="10.211.55.24" port="22" sshConfigId="79776401-8eb2-478a-9895-c6a4920f417e" sshConfig="parallels@10.211.55.24:22 password">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
     </option>
   </component>
 </project>

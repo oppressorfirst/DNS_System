@@ -5,6 +5,8 @@
       <sshConfig authType="PASSWORD" host="10.211.55.18" id="1d91c2b5-c7bf-40de-aac5-5d7c64494cab" port="22" nameFormat="DESCRIPTIVE" username="root" useOpenSSHConfig="true" />
       <sshConfig authType="PASSWORD" host="10.211.55.17" id="64def9b1-2d31-4ade-876f-b82a6d9141db" port="22" nameFormat="DESCRIPTIVE" username="root" useOpenSSHConfig="true" />
       <sshConfig authType="PASSWORD" host="10.211.55.19" id="7853702c-03b1-4181-a8e8-555f4fcad9ce" port="22" nameFormat="DESCRIPTIVE" username="root" useOpenSSHConfig="true" />
+      <sshConfig authType="PASSWORD" host="10.211.55.20" id="88b04622-6bb2-4df0-9989-15457749f751" port="22" nameFormat="DESCRIPTIVE" username="root" useOpenSSHConfig="true" />
+      <sshConfig authType="PASSWORD" host="10.211.55.24" id="79776401-8eb2-478a-9895-c6a4920f417e" port="22" nameFormat="DESCRIPTIVE" username="parallels" useOpenSSHConfig="true" />
     </configs>
   </component>
 </project>
