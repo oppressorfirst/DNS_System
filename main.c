@@ -331,16 +331,23 @@ char* reverseString(char* ip) {
 int main(int agrs,char *argv[]){
 
     printf("please input the domain you want to search:\n");
-    //char domain[512] = {'w','w','w','.','b','a','i','d','u','.','c','o','m'};
-    //char domain[512] = {'s','i','n','a','.','c','o','m','.','c','n'};
     //char domain[512] = {'c','o','m'};
     //char domain[512] = {'w','w','w','.','y','r','z','.','c','o','m'};
     //char domain[512] = {'y','r','z','.','c','o','m'};
+    //char domain[512] = {'c','n'};
+    //char domain[512] = {'b','u','p','t','.','e','d','u','.','c','n'};
+    //char domain[512] = {'e','d','u','.','c','n'};
     //scanf("%s",domain);
     char domain[512] = {'1','2','.','0','.','0','.','5'};
-    //char temp[10]= {'C','N','A','M','E'};
+    //char domain[512] = {'o','r','g'};
+    //char domain[512] = {'q','m','p','l','u','s','.','i','t','e','f','.','o','r','g'};
+    //char domain[512] = {'i','t','e','f','.','o','r','g'};
+    //char domain[512] = {'u','s'};
+    //char domain[512] = {'t','r','a','v','e','l','.','g','o','v','.','u','s'};
+    //char domain[512] = {'g','o','v','.','u','s'};
     //char temp[10]= {'A'};
     //char temp[10]= {'M','X'};
+    //char temp[10]= {'C','N','A','M','E'};
     char temp[10]= {'P','T','R'};
     // 获取用户输入的类型
     printf("请输入记录类型（CNAME、A、MX、PTR）：");
