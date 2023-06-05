@@ -1,0 +1,4 @@
+qmplus.itef.org,3042,IN,A,3.83.6.11
+qmplus.itef.org,3042,IN,CNAME,itef.org
+qmplus.itef.org,2800,IN,MX,10,mx.itef.org
+mx.itef.org,3942,IN,A,13.5.1.1
