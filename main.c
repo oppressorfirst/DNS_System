@@ -1,6 +1,3 @@
-//
-// Created by jialun zhang on 17/5/2023.
-//
 #include <stdio.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -15,7 +12,6 @@
 #define DNS_SERVER_IP       "127.0.0.2"
 #define DNS_HOST			0x01
 #define DNS_CNAME			0x05
-#define DNS_SOA             0x06
 #define DNS_MX              0x0f
 #define DNS_PTR             0x0c
 
@@ -29,14 +25,14 @@ int dns_create_header(struct DNS_Header *header)
 
     memset(header, 0, sizeof(struct DNS_Header));
 
-    //id用随机数,种子用time(NULL),表明生成随机数的范围
-    srandom(time(NULL)); // 线程不安全
+    
+    srandom(time(NULL)); 
     header->id = random()& 0xFFFF;
 
-    //网络字节序（大端）地址低位存数据高位
-    //主机(host)字节序转网络(net)字节序
-    header->flags = htons(0x100);   //一般询问报文的flags是0x100
-    header->questionsNum = htons(1);    //询问报文的问题一般只有一个
+    
+    
+    header->flags = htons(0x100);   
+    header->questionsNum = htons(1);    
     return 0;
 }
 
@@ -49,7 +45,7 @@ void dns_create_question(struct DNS_Query *question, const char *hostname, int t
 
     memset(question, 0, sizeof(struct DNS_Query));
 
-    //内存空间长度：hostname长度 + 结尾\0 再多给一个空间
+    
     question->name = malloc(strlen(hostname) + 2);
     if(question->name == NULL)
     {
@@ -59,35 +55,35 @@ void dns_create_question(struct DNS_Query *question, const char *hostname, int t
 
     question->length =  (int)strlen(hostname) + 2;
 
-    //查询类型1表示获得IPv4地址
+    
     question->qtype = htons(type);
-    //查询类1表示Internet数据
+    
     question->qclass = htons(1);
 
-    //【重要步骤】
-    //名字存储：www.0voice.com -> 3www60voice3com
+    
+    
     const char delim[2] = ".";
-    char *qname = question->name; //用于填充内容用的指针
+    char *qname = question->name; 
 
-    //strdup先开辟大小与hostname同的内存，然后将hostname的字符拷贝到开辟的内存上
-    char *new_hostname = strdup(hostname); //复制字符串，调用malloc
-    //将按照delim分割出字符串数组，返回第一个字符串
+    
+    char *new_hostname = strdup(hostname); 
+    
     char *token = strtok(new_hostname, delim);
 
     while (token != NULL)
     {
 
-        size_t len = strlen(token);  // 获取当前子字符串的长度
-        *qname = len;  // 将长度存储到 qname 所指向的内存位置
-        qname++;  // 指针移动到下一个位置
+        size_t len = strlen(token);  
+        *qname = len;  
+        qname++;  
 
-        strncpy(qname, token, len + 1);  // 复制当前子字符串到 qname 所指向的内存位置
-        qname += len;  // 指针移动到复制结束的位置
+        strncpy(qname, token, len + 1);  
+        qname += len;  
 
-        token = strtok(NULL, delim);  // 获取下一个子字符串
+        token = strtok(NULL, delim);  
     }
 
-    free(new_hostname);  // 释放通过 strdup 函数分配的内存空间
+    free(new_hostname);  
 }
 
 int dns_build_request(struct DNS_Header *header, struct DNS_Query *question, char *request, int initLen){
@@ -99,11 +95,11 @@ int dns_build_request(struct DNS_Header *header, struct DNS_Query *question, cha
 
     memset(request, 0, initLen);
 
-    //header -> request
+    
     memcpy(request, header, sizeof(struct DNS_Header));
     int offset = sizeof(struct DNS_Header);
 
-    //Queries部分字段写入到request中，question->length是question->name的长度
+    
     memcpy(request + offset, question->name, question->length);
     offset += question->length;
 
@@ -115,7 +111,7 @@ int dns_build_request(struct DNS_Header *header, struct DNS_Query *question, cha
 
 
 
-    return offset; //返回request数据的实际长度
+    return offset; 
 }
 
 void dns_parse_name(unsigned char* chunk, unsigned char* ptr, char* out, int* len) {
@@ -153,7 +149,7 @@ void dns_parse_response(char* buffer) {
 
     ptr += 2;
     int flags = ntohs(*(unsigned short int *) ptr);
-    int bit = (flags >> 9) % 2;  // 获取指定位置的二进制位（从右往左，最低位为0）
+    int bit = (flags >> 9) % 2;  
     if (bit == 1) {
         printf("The received message has been truncated!");
         return;
@@ -169,7 +165,7 @@ void dns_parse_response(char* buffer) {
     int Num[3] = {answersNum, authoritiesNum, additionsNum};
     ptr += 2;
 
-    //将问题报文中的网址直接跳过，放到后面读取
+    
     while (1) {
         int flag = (int) ptr[0];
         ptr += (flag + 1);
@@ -179,7 +175,7 @@ void dns_parse_response(char* buffer) {
 
 
 
-    //到了回答区域
+    
     char cname[128], aname[128], ip[20], netip[20];
     int len;
 
@@ -247,23 +243,28 @@ void dns_parse_response(char* buffer) {
             ptr += dnsRr[i].data_len;
         }
     }
-    printf("Answer:\n");
-        for(int i = 0; i < answersNum; i++){
-            printf("%s, ",dnsRr[i].SearchName);
-            printf("type: %d, ",dnsRr[i].type);
+    if (answersNum!=0) {
+        printf("Answer:\n");
+        for (int i = 0; i < answersNum; i++) {
+            printf("%s, ", dnsRr[i].SearchName);
+            printf("type: %d, ", dnsRr[i].type);
             printf("ttl: %d, ", dnsRr[i].ttl);
-            printf("%d, ",dnsRr[i].data_len);
-            if(dnsRr[i].CName != NULL)
-                printf("CNAME: %s, ",dnsRr[i].CName);
-            if(dnsRr[i].ip != NULL)
+            printf("%d, ", dnsRr[i].data_len);
+            if (dnsRr[i].CName != NULL)
+                printf("CNAME: %s, ", dnsRr[i].CName);
+            if (dnsRr[i].ip != NULL)
                 printf("ip: %s, ", dnsRr[i].ip);
-            if(dnsRr[i].MXName != NULL)
-                printf("MX: %s, ",dnsRr[i].MXName);
-            if(dnsRr[i].PTRName != NULL)
-                printf("PTR: %s, ",dnsRr[i].PTRName);
+            if (dnsRr[i].MXName != NULL){
+                printf("MX: %s, ", dnsRr[i].MXName);
+            printf("MX preference: %d", dnsRr[i].preference);
+        }
+            if (dnsRr[i].PTRName != NULL)
+                printf("PTR: %s, ", dnsRr[i].PTRName);
             printf("\n");
         }
-
+        printf("\n");
+    }
+    if (authoritiesNum!=0) {
     printf("Authority Answer:\n");
     for(int i = answersNum; i < answersNum+authoritiesNum; i++){
         printf("%s, ",dnsRr[i].SearchName);
@@ -274,13 +275,17 @@ void dns_parse_response(char* buffer) {
             printf("CNAME: %s, ",dnsRr[i].CName);
         if(dnsRr[i].ip != NULL)
             printf("ip: %s, ", dnsRr[i].ip);
-        if(dnsRr[i].MXName != NULL)
-            printf("MX: %s, ",dnsRr[i].MXName);
+        if(dnsRr[i].MXName != NULL) {
+            printf("MX: %s, ", dnsRr[i].MXName);
+            printf("MX preference: %d", dnsRr[i].preference);
+        }
         if(dnsRr[i].PTRName != NULL)
             printf("PTR: %s, ",dnsRr[i].PTRName);
         printf("\n");
     }
-
+        printf("\n");
+    }
+    if (additionsNum!=0) {
     printf("Additional Answer:\n");
     for(int i = answersNum+authoritiesNum; i < allRRNum; i++){
         printf("%s, ",dnsRr[i].SearchName);
@@ -291,13 +296,16 @@ void dns_parse_response(char* buffer) {
             printf("CNAME: %s, ",dnsRr[i].CName);
         if(dnsRr[i].ip != NULL)
             printf("ip: %s, ", dnsRr[i].ip);
-        if(dnsRr[i].MXName != NULL)
+        if(dnsRr[i].MXName != NULL){
             printf("MX: %s, ",dnsRr[i].MXName);
+        printf("MX preference: %d", dnsRr[i].preference);
+    }
         if(dnsRr[i].PTRName != NULL)
             printf("PTR: %s, ",dnsRr[i].PTRName);
         printf("\n");
     }
-
+        printf("\n");
+    }
 
 }
 
@@ -305,19 +313,19 @@ char* reverseString(char* ip) {
     char* token;
     char* stack[4];
     int top = -1;
-    char* newIp = (char*) malloc(sizeof(char) * (16));  // 预留足够的空间
+    char* newIp = (char*) malloc(sizeof(char) * (16));  
 
-    // 切割字符串并将其放入栈中
+    
     token = strtok(ip, ".");
     while(token != NULL) {
         stack[++top] = token;
         token = strtok(NULL, ".");
     }
 
-    // 清空 newIp 字符串
+    
     newIp[0] = '\0';
 
-    // 从栈中取出并连接到 newIp 中
+    
     while(top >= 0) {
         strcat(newIp, stack[top--]);
         if(top >= 0) {
@@ -331,42 +339,26 @@ char* reverseString(char* ip) {
 int main(int agrs,char *argv[]){
 
     printf("please input the domain you want to search:\n");
-    //char domain[512] = {'c','o','m'};
-    //char domain[512] = {'w','w','w','.','y','r','z','.','c','o','m'};
-    //char domain[512] = {'y','r','z','.','c','o','m'};
-    //char domain[512] = {'c','n'};
-    //char domain[512] = {'b','u','p','t','.','e','d','u','.','c','n'};
-    //char domain[512] = {'e','d','u','.','c','n'};
-    //scanf("%s",domain);
-    char domain[512] = {'1','2','.','0','.','0','.','5'};
-    //char domain[512] = {'o','r','g'};
-    //char domain[512] = {'q','m','p','l','u','s','.','i','t','e','f','.','o','r','g'};
-    //char domain[512] = {'i','t','e','f','.','o','r','g'};
-    //char domain[512] = {'u','s'};
-    //char domain[512] = {'t','r','a','v','e','l','.','g','o','v','.','u','s'};
-    //char domain[512] = {'g','o','v','.','u','s'};
-    //char temp[10]= {'A'};
-    //char temp[10]= {'M','X'};
-    //char temp[10]= {'C','N','A','M','E'};
-    char temp[10]= {'P','T','R'};
-    // 获取用户输入的类型
+    char domain[512];
+    scanf("%s",domain);
+    char temp[10];
     printf("请输入记录类型（CNAME、A、MX、PTR）：");
-    //scanf("%s", temp);
+    scanf("%s", temp);
     int type;
-    // 根据类型输出相应的值
-    if (strcmp(temp, "CNAME") == 0) {
+    
+    if (strcasecmp(temp, "CNAME") == 0) {
         type = 5;
         printf("CNAME\n");
-        // 在此处添加处理 CNAME 类型的代码
-    } else if (strcmp(temp, "A") == 0) {
+        
+    } else if (strcasecmp(temp, "A") == 0) {
         type = 1;
         printf("A\n");
-        // 在此处添加处理 A 类型的代码
-    } else if (strcmp(temp, "MX") == 0) {
+        
+    } else if (strcasecmp(temp, "MX") == 0) {
         type = 15;
         printf("MX\n");
-        // 在此处添加处理 MX 类型的代码
-    } else if(strcmp(temp, "PTR") == 0)
+        
+    } else if(strcasecmp(temp, "PTR") == 0)
     {
         type = 12;
         printf("PTR\n");
@@ -380,43 +372,35 @@ int main(int agrs,char *argv[]){
     else {
         printf("无效的类型\n");
     }
-
-    //type = 5;
-
-    //1.创建UDP socket
-    //网络层ipv4, 传输层用udp
     int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     if(sockfd < 0)
     {
         return -1;
     }
 
-    //2.socket结构体填充数据
+    
     struct sockaddr_in servaddr;
-    bzero(&servaddr, sizeof(servaddr)); //将结构体数组清空
-    servaddr.sin_family = AF_INET;  //选择ipv4通信
-    servaddr.sin_port = htons(DNS_SERVER_PORT);  //选择服务器的53端口
-    inet_pton(AF_INET, DNS_SERVER_IP, &servaddr.sin_addr.s_addr);//将目标地址的ip转化成网络字节序的二进制形式
+    bzero(&servaddr, sizeof(servaddr)); 
+    servaddr.sin_family = AF_INET;  
+    servaddr.sin_port = htons(DNS_SERVER_PORT);  
+    inet_pton(AF_INET, DNS_SERVER_IP, &servaddr.sin_addr.s_addr);
 
-    struct DNS_Header header = {0}; //清零dns头部
-    dns_create_header(&header); //具体构建过程
+    struct DNS_Header header = {0}; 
+    dns_create_header(&header); 
 
-    struct DNS_Query question = {0}; //清零dns问题部分
+    struct DNS_Query question = {0}; 
     dns_create_question(&question, domain, type);
 
     char request[1024] = {0};
     int len = dns_build_request(&header, &question, request, 1024);
 
-    //4.通过sockfd发送DNS请求报文
+    
     sendto(sockfd, request, len, 0, (struct sockaddr *)&servaddr, sizeof(struct sockaddr));
-    //5.接受DNS服务器的响应报文
-    //addr和addr_len是输出参数
+    
+    
     char response[1024] = {0};
     struct sockaddr_in addr;
     size_t addr_len = sizeof(struct sockaddr_in);
-    //5.接受DNS服务器的响应报文
-    //addr和addr_len是输出参数
-
     int n = recvfrom(sockfd, response, sizeof(response), 0, (struct sockaddr *)&addr, (socklen_t *)&addr_len);
     dns_parse_response(response);
 }
