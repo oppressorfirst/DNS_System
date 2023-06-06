@@ -115,15 +115,22 @@ void intToNetworkByteArray(int value, uint8_t* array) {
     array[0] = networkValue & 0xFF;         
 }
 
-void dns_create_header(){
-    
-    dnsHeader.flags = htons(0x8180);
-    dnsHeader.questionsNum = htons(1);    
-    dnsHeader.answerNum = htons(0);
-    dnsHeader.authorityNum = htons(1);
-    if(dnsQuery.qtype == htons(15)) {
-        dnsHeader.additionalNum = htons(1);
+void dns_create_header(int type){
+    if (type == 0) {
+        dnsHeader.flags = htons(0x8180);
+        dnsHeader.questionsNum = htons(1);
+        dnsHeader.answerNum = htons(0);
+        dnsHeader.authorityNum = htons(1);
+        if (dnsQuery.qtype == htons(15)) {
+            dnsHeader.additionalNum = htons(1);
+        } else {
+            dnsHeader.additionalNum = htons(0);
+        }
     } else{
+        dnsHeader.flags = htons(0x8183);
+        dnsHeader.questionsNum = htons(1);
+        dnsHeader.answerNum = htons(0);
+        dnsHeader.authorityNum = htons(0);
         dnsHeader.additionalNum = htons(0);
     }
 }
@@ -231,10 +238,7 @@ void buildRR(struct DNS_RR *dnsRr, int num, char* response,int responseLen){
             token = strtok(NULL, delim);  
         }
 
-        free(new_hostname);  
-
-
-        printf("000000000000000000000000\n");
+        free(new_hostname);
     } else if(rootDnsCache[num].type  == 15){
         
         dnsRr->preference = htons(rootDnsCache[num].preference);
@@ -269,8 +273,7 @@ void buildRR(struct DNS_RR *dnsRr, int num, char* response,int responseLen){
         dnsRr->PTRName = malloc(sizeof (dnsRr->data_len) +100);
         memset(dnsRr->PTRName,0,sizeof (dnsRr->PTRName));
         const char delim[2] = ".";
-        char *qname = dnsRr->PTRName; 
-        printf("9999999999999999\n");
+        char *qname = dnsRr->PTRName;
         
         char *new_hostname = strdup(rootDnsCache[num].PTRName); 
         
@@ -470,11 +473,8 @@ void handle_dns_query(int client_sock) {
     printHex(query_packet,query_length);
 
     dns_parse_query(query_packet);
-    dns_create_header();
-    dns_create_question(&dnsQuery,searchName);
-    char response[513] = {0};
-    int  responseLen = 0;
-    responseLen = createResponse(responseLen,response);
+
+
 
 
     char copyName[100] = ".";
@@ -504,16 +504,6 @@ void handle_dns_query(int client_sock) {
     }
 
 
-
-
-
-
-
-
-
-
-
-
     int isCached = -1;
     
     if(dnsQuery.qtype != htons(12)){
@@ -522,7 +512,6 @@ void handle_dns_query(int client_sock) {
             for (int i = 0; i < root_cache_num; ++i) {
                 if (strcmp(rootDnsCache[i].SearchName, lastString) == 0 && rootDnsCache[i].type == ntohs(dnsQuery.qtype)) {
                     isCached = i;
-                    printf("看看序号对不对%d\n",i);
                 }
             }
         }else if(strcmp(lastString,searchName)!=0){
@@ -542,32 +531,36 @@ void handle_dns_query(int client_sock) {
         }
     }
 
+    if(isCached != -1) {
+        dns_create_header(0);
+
+        dns_create_question(&dnsQuery, searchName);
+        char response[513] = {0};
+        int responseLen = 0;
+        responseLen = createResponse(responseLen, response);
 
 
-
-
-        
         struct DNS_RR temp1, MX_NAME;
         int MXpos = -1;
         memset(&temp1, 0, sizeof(struct DNS_RR));
         memset(&MX_NAME, 0, sizeof(struct DNS_RR));
         buildRR(&temp1, isCached, response, responseLen);
-        responseLen = createRRResponse(responseLen,response,temp1);
-        
-
-        responseLen = createResponse(responseLen,response);
-        printf("%d",responseLen);
+        responseLen = createRRResponse(responseLen, response, temp1);
 
 
-        
-        if(rootDnsCache[isCached].type == 15) {
+        responseLen = createResponse(responseLen, response);
+        printf("%d", responseLen);
+
+
+        if (rootDnsCache[isCached].type == 15) {
             for (int i = 0; i < root_cache_num; ++i) {
-                if (strcmp(rootDnsCache[isCached].MXName, rootDnsCache[i].SearchName) == 0 && rootDnsCache[i].type==1) {
+                if (strcmp(rootDnsCache[isCached].MXName, rootDnsCache[i].SearchName) == 0 &&
+                    rootDnsCache[i].type == 1) {
                     MXpos = i;
                     break;
                 }
             }
-            printf("%d\n",MXpos);
+            printf("%d\n", MXpos);
             if (MXpos != -1) {
                 buildRR(&MX_NAME, MXpos, response, responseLen);
                 responseLen = createRRResponse(responseLen, response, MX_NAME);
@@ -575,25 +568,37 @@ void handle_dns_query(int client_sock) {
         }
 
 
+        uint8_t temp[2];
 
 
-    uint8_t temp[2];
+        intToNetworkByteArray(responseLen, temp);
+        size_t new_packet_length = responseLen + sizeof(temp);
+        char new_packet[new_packet_length + 1];
 
-    
-    intToNetworkByteArray(responseLen,temp);
-    size_t new_packet_length = responseLen + sizeof(temp);
-    char new_packet[new_packet_length + 1];
+        memcpy(new_packet, temp, sizeof(temp));
+        memcpy(new_packet + sizeof(temp), response, responseLen + 1);
 
-    memcpy(new_packet, temp, sizeof(temp));
-    memcpy(new_packet + sizeof(temp), response, responseLen + 1);
+        if (send(client_sock, new_packet, responseLen + 2, 0) < 0) {
+            perror("Send response packet failed");
+            exit(1);
+        }
+    } else{
+        dns_create_header(-1);
+        dns_create_question(&dnsQuery, searchName);
+        char response[513] = {0};
+        int responseLen = 0;
+        responseLen = createResponse(responseLen, response);
 
-    printHex(new_packet,responseLen+2);
-
-
-    
-    if (send(client_sock, new_packet, responseLen+2, 0) < 0) {
-        perror("Send response packet failed");
-        exit(1);
+        uint8_t temp[2];
+        intToNetworkByteArray(responseLen, temp);
+        size_t new_packet_length = responseLen + sizeof(temp);
+        char new_packet[new_packet_length + 1];
+        memcpy(new_packet, temp, sizeof(temp));
+        memcpy(new_packet + sizeof(temp), response, responseLen + 1);
+        if (send(client_sock, new_packet, responseLen + 2, 0) < 0) {
+            perror("Send response packet failed");
+            exit(1);
+        }
     }
 }
 

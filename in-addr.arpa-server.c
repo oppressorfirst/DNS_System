@@ -127,8 +127,8 @@ void dns_create_header(){
     //dnsheader的id在解析中已经记录了。
     dnsHeader.flags = htons(0x8180);
     dnsHeader.questionsNum = htons(1);    //询问报文的问题一般只有一个
-    dnsHeader.answerNum = htons(0);
-    dnsHeader.authorityNum = htons(1);
+    dnsHeader.answerNum = htons(1);
+    dnsHeader.authorityNum = htons(0);
     if(dnsQuery.qtype == htons(15)) {//邮件判断
         dnsHeader.additionalNum = htons(1);
     } else{

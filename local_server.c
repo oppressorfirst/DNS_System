@@ -16,6 +16,7 @@
 
 int udpSock;
 int tcpSock;
+int noSuchName;
 struct sockaddr_in local_addr, client_addr;
 struct sockaddr_in net_server_addr;
 uint16_t net_server_response_length;
@@ -504,8 +505,6 @@ void  ask_net_server(){
 
     
     send(tcpSock, shot_packet, client_query_len + 2, 0);
-
-
 }
 void receive_net_server(){
 
@@ -532,12 +531,11 @@ void parse_server_response(){
 
     unsigned char *ptr =  net_server_response;
     ptr += 2;
-    int flags = ntohs(*(unsigned short int *) ptr);
-    int bit = (flags >> 9) % 2;  
-    if (bit == 1) {
-        printf("The received message has been truncated!");
+    noSuchName = ntohs(*(unsigned short int *) ptr);
+    if (noSuchName == 0x8183){
         return;
     }
+
     ptr += 4;
     int answersNum = ntohs(*(unsigned short *) ptr);
     ptr += 2;
@@ -872,13 +870,16 @@ int main() {
                 end_time = clock();
                 double execution_time = (double)(end_time - process_time) / CLOCKS_PER_SEC;
                 parse_server_response();
+                if (noSuchName == 0x8183) {
+                    noSuchName = 0;
+                    break;
+                }
                 pointNum = 0;
                 for (int i = 0; i < strlen(net_server_return_domain); ++i) {
                     if(net_server_return_domain[i] == '.')
                         pointNum++;
-
                 }
-                printf("查询到第%d台服务器了，它的ip是%s，它是%d级服务器（0-根服务器；1-顶级DNS服务器；2-二级DNS服务器），响应时间是：%f秒\n",times+1,next_server_ip, pointNum,execution_time);
+                printf("查询到第%d台服务器了，它的ip是%s，它是%d级服务器（0-根服务器；1-顶级DNS服务器；2-二级DNS服务器），响应时间是：%f秒\n",times+1,next_server_ip, pointNum, execution_time);
                 times++;
             }
             sendto_AuthToClient();

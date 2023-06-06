@@ -2,36 +2,8 @@
 <project version="4">
   <component name="WebServers">
     <option name="servers">
-      <webServer id="4c91237a-4e2a-4aef-9609-2110f181603c" name="local-server">
-        <fileTransfer accessType="SFTP" host="10.211.55.18" port="22" sshConfigId="1d91c2b5-c7bf-40de-aac5-5d7c64494cab" sshConfig="root@10.211.55.18:22 password">
-          <advancedOptions>
-            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
-          </advancedOptions>
-        </fileTransfer>
-      </webServer>
-      <webServer id="94639465-89a6-4600-b8a2-c37b2fbb8541" name="root-server">
-        <fileTransfer accessType="SFTP" host="10.211.55.17" port="22" sshConfigId="64def9b1-2d31-4ade-876f-b82a6d9141db" sshConfig="root@10.211.55.17:22 password">
-          <advancedOptions>
-            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
-          </advancedOptions>
-        </fileTransfer>
-      </webServer>
-      <webServer id="a68bab04-5fc3-4ae3-876d-e7d8347bbd9c" name="com-server">
-        <fileTransfer accessType="SFTP" host="10.211.55.19" port="22" sshConfigId="7853702c-03b1-4181-a8e8-555f4fcad9ce" sshConfig="root@10.211.55.19:22 password">
-          <advancedOptions>
-            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
-          </advancedOptions>
-        </fileTransfer>
-      </webServer>
-      <webServer id="0afad732-8c7e-406e-a3a9-c8b697cd3b26" name="yrz-server">
-        <fileTransfer accessType="SFTP" host="10.211.55.20" port="22" sshConfigId="88b04622-6bb2-4df0-9989-15457749f751" sshConfig="root@10.211.55.20:22 password">
-          <advancedOptions>
-            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
-          </advancedOptions>
-        </fileTransfer>
-      </webServer>
       <webServer id="e7fb54de-ed3c-484b-975f-22332dbb09d9" name="server">
-        <fileTransfer accessType="SFTP" host="10.211.55.24" port="22" sshConfigId="79776401-8eb2-478a-9895-c6a4920f417e" sshConfig="parallels@10.211.55.24:22 password">
+        <fileTransfer accessType="SFTP" host="10.211.55.3" port="22" sshConfigId="88b04622-6bb2-4df0-9989-15457749f751" sshConfig="parallels@10.211.55.3:22 password">
           <advancedOptions>
             <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
           </advancedOptions>

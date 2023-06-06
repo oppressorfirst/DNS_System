@@ -15,6 +15,8 @@
 #define DNS_MX              0x0f
 #define DNS_PTR             0x0c
 
+int noSuchName;
+
 
 int dns_create_header(struct DNS_Header *header)
 {
@@ -149,11 +151,17 @@ void dns_parse_response(char* buffer) {
 
     ptr += 2;
     int flags = ntohs(*(unsigned short int *) ptr);
+    noSuchName = flags;
+    if (noSuchName == 0x8183) {
+        printf("你想查的域名我们没得！\n");
+        return;
+    }
     int bit = (flags >> 9) % 2;  
     if (bit == 1) {
         printf("The received message has been truncated!");
         return;
     }
+
 
     ptr += 4;
     int answersNum = ntohs(*(unsigned short *) ptr);
@@ -249,7 +257,6 @@ void dns_parse_response(char* buffer) {
             printf("%s, ", dnsRr[i].SearchName);
             printf("type: %d, ", dnsRr[i].type);
             printf("ttl: %d, ", dnsRr[i].ttl);
-            printf("%d, ", dnsRr[i].data_len);
             if (dnsRr[i].CName != NULL)
                 printf("CNAME: %s, ", dnsRr[i].CName);
             if (dnsRr[i].ip != NULL)
@@ -270,7 +277,6 @@ void dns_parse_response(char* buffer) {
         printf("%s, ",dnsRr[i].SearchName);
         printf("type: %d, ",dnsRr[i].type);
         printf("ttl: %d, ", dnsRr[i].ttl);
-        printf("%d, ",dnsRr[i].data_len);
         if(dnsRr[i].CName != NULL)
             printf("CNAME: %s, ",dnsRr[i].CName);
         if(dnsRr[i].ip != NULL)
@@ -291,7 +297,6 @@ void dns_parse_response(char* buffer) {
         printf("%s, ",dnsRr[i].SearchName);
         printf("type: %d, ",dnsRr[i].type);
         printf("ttl: %d, ", dnsRr[i].ttl);
-        printf("%d, ",dnsRr[i].data_len);
         if(dnsRr[i].CName != NULL)
             printf("CNAME: %s, ",dnsRr[i].CName);
         if(dnsRr[i].ip != NULL)
@@ -371,6 +376,7 @@ int main(int agrs,char *argv[]){
     }
     else {
         printf("无效的类型\n");
+        return  -2;
     }
     int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     if(sockfd < 0)
