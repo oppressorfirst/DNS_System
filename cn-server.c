@@ -639,7 +639,7 @@ int main() {
         exit(1);
     }
 
-    printf("com DNS server started...\n");
+    printf("cn TLD server started...\n");
 
     initCsv();
 

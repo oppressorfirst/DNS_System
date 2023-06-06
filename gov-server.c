@@ -597,7 +597,7 @@ int main() {
         exit(1);
     }
 
-    printf("yrz DNS server started...\n");
+    printf("gov 2nd level domain server started...\n");
 
     initCsv();//将文件读入
 

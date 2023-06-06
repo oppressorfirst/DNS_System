@@ -658,7 +658,7 @@ int main() {
         exit(1);
     }
 
-    printf("com DNS server started...\n");
+    printf("org TLD server started...\n");
 
     initCsv();//将文件读入
 

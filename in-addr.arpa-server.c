@@ -500,7 +500,7 @@ int main() {
         exit(1);
     }
 
-    printf("com DNS server started...\n");
+    printf("This is in-addr.arpa server...\n");
 
     initCsv();
 
